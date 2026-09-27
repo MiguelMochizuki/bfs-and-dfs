@@ -236,7 +236,7 @@ button:disabled {
   flex-shrink: 0;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.04);
 }
-#legend .dot.start { background: var(--green); }
+#legend .dot.start { background: #f8fafc; }
 #legend .dot.end { background: var(--red); }
 #legend .dot.visited { background: var(--accent); }
 #legend .dot.current { background: var(--orange); }
@@ -287,8 +287,11 @@ button:disabled {
 .node.current circle { fill: var(--orange); stroke: #fbbf24; stroke-width: 4; }
 .node.inpath circle { fill: var(--green); stroke: #4ade80; }
 
-/* papel do nó (anel) — por último, pra origem/destino nunca sumirem mesmo quando também visitado/no caminho */
-.node.start circle { stroke: var(--green); stroke-width: 3; }
+/* papel do nó (anel) — por último, pra origem/destino nunca sumirem mesmo
+   quando também visitado/no caminho. Branco pra origem: nenhum preenchimento
+   de estado (azul/laranja/verde) usa essa cor, então o anel nunca se perde
+   dentro do preenchimento. */
+.node.start circle { stroke: #f8fafc; stroke-width: 3; }
 .node.end circle { stroke: var(--red); stroke-width: 3; }
 
 .edge {

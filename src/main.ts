@@ -20,6 +20,8 @@ let allPaths: number[][] | null = null;
 let revealIndex = 0; // quantos caminhos já foram revelados sequencialmente (backtracking)
 let displayIndex = 0; // caminho mostrado agora: segue revealIndex, mas trava no melhor ao esgotar
 let browsingPaths = false;
+let autoPlayTimer: number | null = null;
+const AUTO_PLAY_INTERVAL_MS = 120;
 
 // Drag
 let dragging: { id: number; offsetX: number; offsetY: number } | null = null;
@@ -34,6 +36,7 @@ const visitOrderEl = document.getElementById('visitOrder')!;
 const runBtn = document.getElementById('runBtn') as HTMLButtonElement;
 const stepBtn = document.getElementById('stepBtn') as HTMLButtonElement;
 const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
+const playAllBtn = document.getElementById('playAllBtn') as HTMLButtonElement;
 const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const directedInput = document.getElementById('directed') as HTMLInputElement;
@@ -61,6 +64,7 @@ directedInput.addEventListener('change', () => {
 runBtn.addEventListener('click', runAll);
 stepBtn.addEventListener('click', stepOnce);
 continueBtn.addEventListener('click', continuePath);
+playAllBtn.addEventListener('click', playAllPaths);
 resetBtn.addEventListener('click', () => {
   resetRun();
   render();
@@ -275,24 +279,48 @@ function stepOnce(): void {
 }
 
 /**
- * Handler do botão "Continuar": só ativo em DFS com destino definido, após
- * o primeiro caminho já ter sido encontrado. No primeiro clique, calcula
- * (via {@link findAllPaths}) todos os caminhos simples de origem a destino;
- * a cada clique seguinte revela o próximo (backtracking), mostrando também
- * o melhor (mais curto) entre os já revelados — o mesmo efeito de "redo" do
- * Prolog: achar uma solução, parar, e só buscar a próxima se o usuário
- * pedir. Ao esgotar todos os caminhos, para de seguir a ordem de
- * descoberta e passa a exibir o melhor de todos, não o último rastreado.
+ * Handler do botão "Continuar": cada algoritmo no seu escopo.
+ *
+ * - **BFS** já acha "o" caminho ótimo de cara — não existe "próximo
+ *   caminho" a explorar. Aqui "Continuar" vira só um sinônimo de "Passo":
+ *   mostra a busca avançando um passo por clique.
+ * - **DFS** não garante caminho ótimo (acha "um" caminho qualquer). Aqui
+ *   "Continuar" faz backtracking: calcula (via {@link findAllPaths}) todos
+ *   os caminhos simples de origem a destino e revela o próximo a cada
+ *   clique, mostrando o melhor (mais curto) entre os já revelados — efeito
+ *   "redo" do Prolog. Ao esgotar, passa a exibir o melhor de todos, não o
+ *   último rastreado. Não precisa ter rodado "Executar" antes.
  */
 function continuePath(): void {
-  if (!currentRun?.found || endId === null || getAlgorithm() !== 'dfs') return;
+  if (getAlgorithm() === 'bfs') {
+    stepOnce();
+    return;
+  }
+
+  if (endId === null) return;
+  if (!validate()) return;
+
+  let freshlyComputed = false;
   if (allPaths === null) {
     allPaths = findAllPaths(graph, startId!, endId);
     revealIndex = 0;
-    displayIndex = 0;
+    freshlyComputed = true;
   }
+
+  if (allPaths.length === 0) {
+    browsingPaths = false;
+    statusEl.textContent = 'Destino não alcançável a partir da origem.';
+    render();
+    updateContinueButton();
+    return;
+  }
+
+  // Se "Executar"/"Passo" já mostrou o 1º caminho (currentRun.found), este
+  // clique sempre significa "próximo". Só quando nada rodou antes é que o
+  // 1º clique aqui deve, ele mesmo, mostrar o 1º caminho.
+  const alreadyShowedFirst = freshlyComputed ? !!currentRun?.found : true;
   browsingPaths = true;
-  if (revealIndex < allPaths.length - 1) revealIndex++;
+  if (alreadyShowedFirst && revealIndex < allPaths.length - 1) revealIndex++;
   displayIndex =
     revealIndex === allPaths.length - 1 ? bestPathIndex(allPaths) : revealIndex;
   render();
@@ -327,17 +355,66 @@ function resetRun(): void {
 }
 
 /**
- * Habilita o botão "Continuar" apenas quando há sentido em pedir o próximo
- * caminho: DFS, destino definido, primeiro caminho já encontrado, e ainda
- * restam caminhos simples não revelados (ou nenhum foi calculado ainda).
+ * Habilita "Continuar" e "Ver tudo rápido" com regras diferentes por
+ * algoritmo, já que fazem coisas diferentes em cada um (ver
+ * {@link continuePath}):
+ *
+ * - **BFS**: "Continuar" só precisa de grafo e origem válidos, igual
+ *   "Passo" (não depende de destino nem de "Executar" já ter rodado).
+ *   "Ver tudo rápido" não existe pra BFS — "rodar todos os caminhos" não
+ *   faz sentido quando só existe um.
+ * - **DFS**: os dois exigem também destino definido, e ficam habilitados
+ *   enquanto restarem caminhos simples não revelados (ou nenhum foi
+ *   calculado ainda).
  */
 function updateContinueButton(): void {
-  const eligible =
-    getAlgorithm() === 'dfs' &&
+  const baseEligible =
+    graph.size > 0 && startId !== null && graph.vertices.has(startId);
+
+  if (getAlgorithm() === 'bfs') {
+    continueBtn.disabled = !baseEligible;
+    playAllBtn.disabled = true;
+    return;
+  }
+
+  const dfsEligible =
+    baseEligible &&
     endId !== null &&
-    !!currentRun?.found &&
     (allPaths === null || revealIndex < allPaths.length - 1);
-  continueBtn.disabled = !eligible;
+  continueBtn.disabled = !dfsEligible;
+  playAllBtn.disabled = autoPlayTimer !== null || !dfsEligible;
+}
+
+/**
+ * Handler do botão "Ver tudo rápido" (só DFS): dispara {@link continuePath}
+ * repetidamente a cada {@link AUTO_PLAY_INTERVAL_MS} até esgotar todos os
+ * caminhos simples, parando sozinho no melhor — mesmo resultado de clicar
+ * "Continuar" até o fim, só que automático. Desabilita os outros botões
+ * de ação enquanto roda. Se o grafo/origem/destino mudar no meio (via
+ * canvas), `continuePath` vira no-op e o loop se percebe pelo
+ * `continueBtn` desabilitado e para sozinho, sem travar.
+ */
+function playAllPaths(): void {
+  if (getAlgorithm() !== 'dfs') return;
+  if (autoPlayTimer !== null || continueBtn.disabled) return;
+  setActionButtonsDisabled(true);
+  autoPlayTimer = window.setInterval(() => {
+    continuePath();
+    if (continueBtn.disabled) {
+      window.clearInterval(autoPlayTimer!);
+      autoPlayTimer = null;
+      setActionButtonsDisabled(false);
+    }
+  }, AUTO_PLAY_INTERVAL_MS);
+}
+
+/** Liga/desliga os botões de ação que não fazem sentido durante o autoplay. */
+function setActionButtonsDisabled(disabled: boolean): void {
+  runBtn.disabled = disabled;
+  stepBtn.disabled = disabled;
+  resetBtn.disabled = disabled;
+  clearBtn.disabled = disabled;
+  updateContinueButton();
 }
 
 // ---------- Status ----------

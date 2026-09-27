@@ -51,6 +51,22 @@ try {
   await page.click('.node[data-id="3"]');
   await page.click('input[name="mode"][value="addVertex"]');
 
+  // "Continuar"/"Ver tudo rápido" não devem exigir ter rodado "Executar"
+  // antes — clicando direto, o backtracking já começa sozinho e mostra o
+  // 1º caminho (não pula pro 2º).
+  assert(
+    (await page.getAttribute('#continueBtn', 'disabled')) === null,
+    '"Continuar" deveria estar habilitado sem precisar rodar "Executar" antes'
+  );
+  await page.click('#continueBtn');
+  const statusFirstContinueDireto = await page.textContent('#status');
+  assert(
+    statusFirstContinueDireto.includes('Caminho 1/2') &&
+      statusFirstContinueDireto.includes('v0 → v1 → v2 → v3'),
+    `1º clique em "Continuar" sem "Executar" deveria mostrar o 1º caminho, veio: "${statusFirstContinueDireto}"`
+  );
+
+  await page.click('#resetBtn');
   await page.click('#runBtn');
   const statusAfterRun = await page.textContent('#status');
   assert(
@@ -77,6 +93,55 @@ try {
   assert(
     (await page.getAttribute('#continueBtn', 'disabled')) !== null,
     '"Continuar" deveria desabilitar após esgotar os caminhos'
+  );
+
+  // "Ver tudo rápido": reseta só a execução (grafo/origem/destino continuam)
+  // e confere que o autoplay chega sozinho no mesmo resultado final.
+  await page.click('#resetBtn');
+  await page.click('#runBtn');
+  await page.click('#playAllBtn');
+  assert(
+    (await page.getAttribute('#runBtn', 'disabled')) !== null,
+    '"Executar" deveria desabilitar durante o autoplay'
+  );
+  await page.waitForFunction(
+    () => !(document.getElementById('runBtn')).disabled,
+    { timeout: 5000 }
+  );
+  const statusAfterPlayAll = await page.textContent('#status');
+  assert(
+    statusAfterPlayAll.includes('2 caminhos simples explorados') &&
+      statusAfterPlayAll.includes('melhor: v0 → v1 → v2 → v3'),
+    `"Ver tudo rápido" deveria terminar no melhor caminho, veio: "${statusAfterPlayAll}"`
+  );
+  assert(
+    (await page.getAttribute('#playAllBtn', 'disabled')) !== null,
+    '"Ver tudo rápido" deveria desabilitar de novo ao esgotar'
+  );
+
+  // BFS já acha "o" caminho ótimo de cara: não existe "próximo caminho" a
+  // explorar, então "Continuar" vira só um sinônimo de "Passo" (avança 1
+  // passo por clique), e "Ver tudo rápido" nem se aplica.
+  await page.click('input[name="algo"][value="bfs"]');
+  assert(
+    (await page.getAttribute('#continueBtn', 'disabled')) === null,
+    '"Continuar" deveria estar habilitado em BFS mesmo sem destino (vira "Passo")'
+  );
+  assert(
+    (await page.getAttribute('#playAllBtn', 'disabled')) !== null,
+    '"Ver tudo rápido" não deveria existir em BFS'
+  );
+  await page.click('#continueBtn');
+  const statusBfsContinue1 = await page.textContent('#status');
+  assert(
+    statusBfsContinue1.startsWith('Passo 1/'),
+    `"Continuar" em BFS deveria avançar 1 passo, como "Passo", veio: "${statusBfsContinue1}"`
+  );
+  await page.click('#continueBtn');
+  const statusBfsContinue2 = await page.textContent('#status');
+  assert(
+    statusBfsContinue2.startsWith('Passo 2/'),
+    `2º clique em "Continuar" (BFS) deveria ir pro passo 2, veio: "${statusBfsContinue2}"`
   );
 
   await browser.close();
