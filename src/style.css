@@ -1,0 +1,316 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-0: #0f172a;
+  --bg-1: #111827;
+  --bg-2: #1e293b;
+  --bg-3: #334155;
+  --bg-4: #475569;
+  --line: #1e293b;
+  --text: #e2e8f0;
+  --text-dim: #cbd5e1;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+  --accent: #38bdf8;
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f59e0b;
+
+  --panel-gap: 1.25rem;
+  --radius: 6px;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg-0);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+/* ---------- Header ---------- */
+header {
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+header h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+header .hint {
+  font-size: 0.78rem;
+  color: var(--muted-2);
+}
+
+/* ---------- Layout ---------- */
+main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.controls {
+  width: 300px;
+  padding: 1rem 1rem 1.5rem;
+  background: var(--bg-1);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+}
+
+.controls section { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.controls h2 {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  letter-spacing: 0.1em;
+}
+
+/* ---------- Grupos de opção (radio/checkbox) ---------- */
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.controls label:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.controls label input[type="radio"],
+.controls label input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* realça a opção ativa */
+.controls label:has(input:checked) {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---------- Botões de ação ---------- */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+button {
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-2);
+  color: var(--text-dim);
+  border: 1px solid var(--bg-3);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.05s;
+}
+
+button:hover {
+  background: var(--bg-3);
+  color: var(--text);
+  border-color: var(--bg-4);
+}
+
+button:active { transform: translateY(1px); }
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* botão primário (Executar) */
+#runBtn {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+}
+#runBtn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: var(--accent);
+  color: #e0f2fe;
+}
+
+/* ---------- Templates ---------- */
+.templates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+.templates button {
+  font-size: 0.75rem;
+  padding: 0.45rem 0.3rem;
+  text-align: center;
+}
+.templates button:last-child:nth-child(odd) {
+  grid-column: span 2;
+}
+
+/* ---------- Status (destaque principal) ---------- */
+.status-card {
+  background: var(--bg-2);
+  border: 1px solid var(--bg-3);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+#status {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+  min-height: 2.2em;
+}
+
+#status strong { color: var(--text); font-weight: 600; }
+#status .accent { color: var(--accent); }
+#status .green { color: var(--green); }
+#status .muted { color: var(--muted-2); }
+
+#visitOrder {
+  font-size: 0.78rem;
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  color: var(--accent);
+  word-break: break-word;
+  line-height: 1.5;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--bg-3);
+  margin-top: 0.1rem;
+}
+#visitOrder:empty { display: none; }
+
+/* ---------- Legenda (compacta) ---------- */
+#legend {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding-top: 0.2rem;
+}
+
+#legend > div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+#legend .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.04);
+}
+#legend .dot.start { background: var(--green); }
+#legend .dot.end { background: var(--red); }
+#legend .dot.visited { background: var(--accent); }
+#legend .dot.current { background: var(--orange); }
+#legend .dot.inpath { background: #4ade80; }
+
+/* ---------- Canvas ---------- */
+.canvas-wrapper {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+  overflow: hidden;
+  min-width: 0;
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+  user-select: none;
+}
+
+/* ---------- Estilos SVG ---------- */
+
+.node circle {
+  fill: var(--bg-2);
+  stroke: var(--muted-2);
+  stroke-width: 2;
+  transition: fill 0.15s, stroke 0.15s, stroke-width 0.15s;
+}
+
+.node text {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  user-select: none;
+}
+
+.node { cursor: grab; }
+.node:active { cursor: grabbing; }
+.node:hover circle { stroke: var(--muted); }
+
+.node.start circle { stroke: var(--green); stroke-width: 3; }
+.node.end circle { stroke: var(--red); stroke-width: 3; }
+
+.node.visited circle { fill: var(--accent); stroke: #7dd3fc; }
+.node.current circle { fill: var(--orange); stroke: #fbbf24; stroke-width: 4; }
+.node.inpath circle { fill: var(--green); stroke: #4ade80; }
+
+.edge {
+  stroke: var(--bg-4);
+  stroke-width: 2;
+  transition: stroke 0.15s, stroke-width 0.15s;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.edge.directed-marker { fill: var(--bg-4); stroke: none; }
+.edge.tree { stroke: var(--green); stroke-width: 3; }
+.edge.tree.directed-marker { fill: var(--green); }
+.edge.path { stroke: var(--accent); stroke-width: 3.5; }
+.edge.path.directed-marker { fill: var(--accent); }
+
+/* realce de hover nas arestas para o modo remover */
+.edge:hover { stroke: var(--red); }
+
+/* ---------- Scrollbar discreta ---------- */
+.controls::-webkit-scrollbar { width: 8px; }
+.controls::-webkit-scrollbar-track { background: transparent; }
+.controls::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 4px;
+}
+.controls::-webkit-scrollbar-thumb:hover { background: var(--bg-4); }

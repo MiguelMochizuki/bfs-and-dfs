@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador BFS / DFS</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <header>
+    <h1>Simulador de BFS e DFS</h1>
+    <span class="hint">Arraste vértices • Clique para interagir conforme o modo</span>
+  </header>
+
+  <main>
+    <aside class="controls">
+      <section>
+        <h2>Modo de interação</h2>
+        <label><input type="radio" name="mode" value="addVertex" checked /> Adicionar vértice</label>
+        <label><input type="radio" name="mode" value="addEdge" /> Adicionar aresta</label>
+        <label><input type="radio" name="mode" value="setStart" /> Definir origem</label>
+        <label><input type="radio" name="mode" value="setEnd" /> Definir destino</label>
+        <label><input type="radio" name="mode" value="remove" /> Remover elemento</label>
+      </section>
+
+      <section>
+        <h2>Algoritmo</h2>
+        <label><input type="radio" name="algo" value="bfs" checked /> BFS (largura)</label>
+        <label><input type="radio" name="algo" value="dfs" /> DFS (profundidade)</label>
+        <label class="checkbox">
+          <input type="checkbox" id="directed" /> Grafo direcionado
+        </label>
+      </section>
+
+      <section class="actions">
+        <button id="runBtn">▶ Executar</button>
+        <button id="stepBtn">⏭ Passo</button>
+        <button id="resetBtn">↺ Resetar</button>
+        <button id="clearBtn">🗑 Limpar</button>
+      </section>
+
+      <section>
+        <h2>Templates</h2>
+        <div class="templates">
+          <button data-template="path">Caminho</button>
+          <button data-template="cycle">Ciclo</button>
+          <button data-template="star">Estrela</button>
+          <button data-template="grid">Grade 3×3</button>
+          <button data-template="tree">Árvore binária</button>
+          <button data-template="complete">Completo K5</button>
+          <button data-template="petersen">Petersen</button>
+          <button data-template="twoComponents">2 componentes</button>
+          <button data-template="random">Aleatório</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Status</h2>
+        <div id="status">Clique no canvas para adicionar vértices.</div>
+        <div id="visitOrder"></div>
+        <div id="legend">
+          <div><span class="dot start"></span> Origem</div>
+          <div><span class="dot end"></span> Destino</div>
+          <div><span class="dot visited"></span> Visitado</div>
+          <div><span class="dot current"></span> Atual</div>
+          <div><span class="dot inpath"></span> Caminho final</div>
+        </div>
+      </section>
+    </aside>
+
+    <div class="canvas-wrapper">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
