@@ -17,7 +17,8 @@ let currentStepIndex = 0;
 
 // Navegação por todos os caminhos simples (botão "Continuar", só em DFS com destino)
 let allPaths: number[][] | null = null;
-let pathIndex = 0;
+let revealIndex = 0; // quantos caminhos já foram revelados sequencialmente (backtracking)
+let displayIndex = 0; // caminho mostrado agora: segue revealIndex, mas trava no melhor ao esgotar
 let browsingPaths = false;
 
 // Drag
@@ -277,22 +278,36 @@ function stepOnce(): void {
  * Handler do botão "Continuar": só ativo em DFS com destino definido, após
  * o primeiro caminho já ter sido encontrado. No primeiro clique, calcula
  * (via {@link findAllPaths}) todos os caminhos simples de origem a destino;
- * a cada clique seguinte avança para o próximo, mostrando também o melhor
- * (mais curto) entre os já revelados — o mesmo efeito de "redo" do Prolog:
- * achar uma solução, parar, e só buscar a próxima se o usuário pedir.
+ * a cada clique seguinte revela o próximo (backtracking), mostrando também
+ * o melhor (mais curto) entre os já revelados — o mesmo efeito de "redo" do
+ * Prolog: achar uma solução, parar, e só buscar a próxima se o usuário
+ * pedir. Ao esgotar todos os caminhos, para de seguir a ordem de
+ * descoberta e passa a exibir o melhor de todos, não o último rastreado.
  */
 function continuePath(): void {
   if (!currentRun?.found || endId === null || getAlgorithm() !== 'dfs') return;
   if (allPaths === null) {
     allPaths = findAllPaths(graph, startId!, endId);
-    pathIndex = 0;
+    revealIndex = 0;
+    displayIndex = 0;
   }
   browsingPaths = true;
-  if (pathIndex < allPaths.length - 1) pathIndex++;
+  if (revealIndex < allPaths.length - 1) revealIndex++;
+  displayIndex =
+    revealIndex === allPaths.length - 1 ? bestPathIndex(allPaths) : revealIndex;
   render();
   updateStatus();
   updateVisitOrder();
   updateContinueButton();
+}
+
+/** @returns Índice do caminho mais curto (menos arestas) em `paths`. */
+function bestPathIndex(paths: number[][]): number {
+  let best = 0;
+  for (let i = 1; i < paths.length; i++) {
+    if (paths[i].length < paths[best].length) best = i;
+  }
+  return best;
 }
 
 /**
@@ -304,7 +319,8 @@ function resetRun(): void {
   currentRun = null;
   currentStepIndex = 0;
   allPaths = null;
-  pathIndex = 0;
+  revealIndex = 0;
+  displayIndex = 0;
   browsingPaths = false;
   visitOrderEl.textContent = '';
   updateContinueButton();
@@ -320,7 +336,7 @@ function updateContinueButton(): void {
     getAlgorithm() === 'dfs' &&
     endId !== null &&
     !!currentRun?.found &&
-    (allPaths === null || pathIndex < allPaths.length - 1);
+    (allPaths === null || revealIndex < allPaths.length - 1);
   continueBtn.disabled = !eligible;
 }
 
@@ -333,18 +349,23 @@ function updateContinueButton(): void {
  */
 function updateStatus(): void {
   if (browsingPaths && allPaths) {
-    const p = allPaths[pathIndex];
-    const bestSoFar = allPaths
-      .slice(0, pathIndex + 1)
-      .reduce((a, b) => (b.length < a.length ? b : a));
+    const p = allPaths[displayIndex];
     const edges = p.length - 1;
-    const bestEdges = bestSoFar.length - 1;
-    let msg =
-      `Caminho ${pathIndex + 1}/${allPaths.length} (${edges} aresta${edges === 1 ? '' : 's'})` +
-      ` — ${p.map(i => 'v' + i).join(' → ')}` +
-      ` — melhor até agora: ${bestEdges} aresta${bestEdges === 1 ? '' : 's'}`;
-    if (pathIndex === allPaths.length - 1) {
-      msg += ' — todos os caminhos simples explorados';
+    const exhausted = revealIndex === allPaths.length - 1;
+    let msg: string;
+    if (exhausted) {
+      msg =
+        `${allPaths.length} caminho${allPaths.length === 1 ? '' : 's'} simples explorado${allPaths.length === 1 ? '' : 's'}` +
+        ` — melhor: ${p.map(i => 'v' + i).join(' → ')} (${edges} aresta${edges === 1 ? '' : 's'})`;
+    } else {
+      const bestSoFar = allPaths
+        .slice(0, revealIndex + 1)
+        .reduce((a, b) => (b.length < a.length ? b : a));
+      const bestEdges = bestSoFar.length - 1;
+      msg =
+        `Caminho ${revealIndex + 1}/${allPaths.length} (${edges} aresta${edges === 1 ? '' : 's'})` +
+        ` — ${p.map(i => 'v' + i).join(' → ')}` +
+        ` — melhor até agora: ${bestEdges} aresta${bestEdges === 1 ? '' : 's'}`;
     }
     statusEl.textContent = msg;
     return;
@@ -384,7 +405,7 @@ function updateStatus(): void {
 function updateVisitOrder(): void {
   if (browsingPaths && allPaths) {
     visitOrderEl.textContent =
-      'Caminho: ' + allPaths[pathIndex].map(id => `v${id}`).join(' → ');
+      'Caminho: ' + allPaths[displayIndex].map(id => `v${id}`).join(' → ');
     return;
   }
   if (!currentRun) {
@@ -402,7 +423,7 @@ function updateVisitOrder(): void {
 function render(): void {
   let step: Step | null = null;
   if (browsingPaths && allPaths) {
-    const p = allPaths[pathIndex];
+    const p = allPaths[displayIndex];
     step = {
       visited: new Set(),
       current: null,

@@ -62,13 +62,17 @@ try {
     '"Continuar" deveria estar habilitado após achar o 1º caminho'
   );
 
+  // esgota num único clique (só há 2 caminhos): o último rastreado é
+  // v0→v5→v4→v3, mas como empata em comprimento com v0→v1→v2→v3 (o
+  // primeiro achado), o esgotamento deve voltar a mostrar ESTE — prova
+  // que exibe o melhor, não o último rastreado.
   await page.click('#continueBtn');
   const statusAfterContinue = await page.textContent('#status');
   assert(
-    statusAfterContinue.includes('Caminho 2/2') &&
-      statusAfterContinue.includes('v0 → v5 → v4 → v3') &&
-      statusAfterContinue.includes('todos os caminhos simples explorados'),
-    `"Continuar" deveria mostrar o 2º caminho e esgotar, veio: "${statusAfterContinue}"`
+    statusAfterContinue.includes('2 caminhos simples explorados') &&
+      statusAfterContinue.includes('melhor: v0 → v1 → v2 → v3') &&
+      !statusAfterContinue.includes('v0 → v5 → v4 → v3'),
+    `esgotar deveria mostrar o melhor caminho (v0→v1→v2→v3), veio: "${statusAfterContinue}"`
   );
   assert(
     (await page.getAttribute('#continueBtn', 'disabled')) !== null,
