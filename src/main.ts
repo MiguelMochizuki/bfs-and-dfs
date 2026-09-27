@@ -1,6 +1,6 @@
 import './style.css';
 import { Graph } from './graph';
-import { bfs, dfs } from './algorithms';
+import { bfs, dfs, findAllPaths } from './algorithms';
 import { loadTemplate } from './templates';
 import { renderGraph, svgPoint } from './renderer';
 import type { Algorithm, InteractionMode, RunResult, Step } from './types';
@@ -15,6 +15,11 @@ let pendingEdgeFrom: number | null = null;
 let currentRun: RunResult | null = null;
 let currentStepIndex = 0;
 
+// Navegação por todos os caminhos simples (botão "Continuar", só em DFS com destino)
+let allPaths: number[][] | null = null;
+let pathIndex = 0;
+let browsingPaths = false;
+
 // Drag
 let dragging: { id: number; offsetX: number; offsetY: number } | null = null;
 let mouseDownPos: { x: number; y: number } | null = null;
@@ -27,6 +32,7 @@ const statusEl = document.getElementById('status')!;
 const visitOrderEl = document.getElementById('visitOrder')!;
 const runBtn = document.getElementById('runBtn') as HTMLButtonElement;
 const stepBtn = document.getElementById('stepBtn') as HTMLButtonElement;
+const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
 const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const directedInput = document.getElementById('directed') as HTMLInputElement;
@@ -53,6 +59,7 @@ directedInput.addEventListener('change', () => {
 
 runBtn.addEventListener('click', runAll);
 stepBtn.addEventListener('click', stepOnce);
+continueBtn.addEventListener('click', continuePath);
 resetBtn.addEventListener('click', () => {
   resetRun();
   render();
@@ -235,6 +242,7 @@ function compute(): RunResult {
  */
 function runAll(): void {
   if (!validate()) return;
+  browsingPaths = false;
   if (!currentRun) {
     currentRun = compute();
     currentStepIndex = 0;
@@ -243,6 +251,7 @@ function runAll(): void {
   render();
   updateStatus();
   updateVisitOrder();
+  updateContinueButton();
 }
 
 /**
@@ -251,6 +260,7 @@ function runAll(): void {
  */
 function stepOnce(): void {
   if (!validate()) return;
+  browsingPaths = false;
   if (!currentRun) {
     currentRun = compute();
     currentStepIndex = 0;
@@ -260,6 +270,29 @@ function stepOnce(): void {
   render();
   updateStatus();
   updateVisitOrder();
+  updateContinueButton();
+}
+
+/**
+ * Handler do botão "Continuar": só ativo em DFS com destino definido, após
+ * o primeiro caminho já ter sido encontrado. No primeiro clique, calcula
+ * (via {@link findAllPaths}) todos os caminhos simples de origem a destino;
+ * a cada clique seguinte avança para o próximo, mostrando também o melhor
+ * (mais curto) entre os já revelados — o mesmo efeito de "redo" do Prolog:
+ * achar uma solução, parar, e só buscar a próxima se o usuário pedir.
+ */
+function continuePath(): void {
+  if (!currentRun?.found || endId === null || getAlgorithm() !== 'dfs') return;
+  if (allPaths === null) {
+    allPaths = findAllPaths(graph, startId!, endId);
+    pathIndex = 0;
+  }
+  browsingPaths = true;
+  if (pathIndex < allPaths.length - 1) pathIndex++;
+  render();
+  updateStatus();
+  updateVisitOrder();
+  updateContinueButton();
 }
 
 /**
@@ -270,7 +303,25 @@ function stepOnce(): void {
 function resetRun(): void {
   currentRun = null;
   currentStepIndex = 0;
+  allPaths = null;
+  pathIndex = 0;
+  browsingPaths = false;
   visitOrderEl.textContent = '';
+  updateContinueButton();
+}
+
+/**
+ * Habilita o botão "Continuar" apenas quando há sentido em pedir o próximo
+ * caminho: DFS, destino definido, primeiro caminho já encontrado, e ainda
+ * restam caminhos simples não revelados (ou nenhum foi calculado ainda).
+ */
+function updateContinueButton(): void {
+  const eligible =
+    getAlgorithm() === 'dfs' &&
+    endId !== null &&
+    !!currentRun?.found &&
+    (allPaths === null || pathIndex < allPaths.length - 1);
+  continueBtn.disabled = !eligible;
 }
 
 // ---------- Status ----------
@@ -281,6 +332,24 @@ function resetRun(): void {
  * interação selecionado.
  */
 function updateStatus(): void {
+  if (browsingPaths && allPaths) {
+    const p = allPaths[pathIndex];
+    const bestSoFar = allPaths
+      .slice(0, pathIndex + 1)
+      .reduce((a, b) => (b.length < a.length ? b : a));
+    const edges = p.length - 1;
+    const bestEdges = bestSoFar.length - 1;
+    let msg =
+      `Caminho ${pathIndex + 1}/${allPaths.length} (${edges} aresta${edges === 1 ? '' : 's'})` +
+      ` — ${p.map(i => 'v' + i).join(' → ')}` +
+      ` — melhor até agora: ${bestEdges} aresta${bestEdges === 1 ? '' : 's'}`;
+    if (pathIndex === allPaths.length - 1) {
+      msg += ' — todos os caminhos simples explorados';
+    }
+    statusEl.textContent = msg;
+    return;
+  }
+
   if (currentRun) {
     const s = currentRun.steps[currentStepIndex];
     const frontierTxt = s.frontier.length
@@ -313,6 +382,11 @@ function updateStatus(): void {
 
 /** Atualiza `visitOrderEl` com a ordem de visita acumulada até o passo atual. */
 function updateVisitOrder(): void {
+  if (browsingPaths && allPaths) {
+    visitOrderEl.textContent =
+      'Caminho: ' + allPaths[pathIndex].map(id => `v${id}`).join(' → ');
+    return;
+  }
   if (!currentRun) {
     visitOrderEl.textContent = '';
     return;
@@ -326,7 +400,23 @@ function updateVisitOrder(): void {
 
 /** Redesenha o SVG a partir do estado atual do grafo e do passo selecionado. */
 function render(): void {
-  const step = currentRun ? currentRun.steps[currentStepIndex] : null;
+  let step: Step | null = null;
+  if (browsingPaths && allPaths) {
+    const p = allPaths[pathIndex];
+    step = {
+      visited: new Set(),
+      current: null,
+      frontier: [],
+      treeEdges: [],
+      parent: new Map(),
+      path: p,
+      order: p,
+      finished: true,
+      found: true,
+    };
+  } else if (currentRun) {
+    step = currentRun.steps[currentStepIndex];
+  }
   renderGraph(svg, {
     graph,
     startId,
@@ -358,4 +448,5 @@ resizeObserver.observe(svg);
 
 // ---------- Init ----------
 updateStatus();
+updateContinueButton();
 render();

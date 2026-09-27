@@ -106,18 +106,21 @@ export function bfs(
   const order: number[] = [];
   const queue: number[] = [start];
 
-  let path: number[] = [];
-  let found = end === null || start === end;
-
-  const snapshot = makeSnapshotter(steps, {
+  // `state` é a única fonte de verdade para `path`/`found`: são mutados
+  // via `state.path =`/`state.found =`, nunca reatribuindo uma variável
+  // externa — senão `snapshot()` continuaria enxergando os valores
+  // capturados na criação do objeto, travados (ver `makeSnapshotter`).
+  const state = {
     visited,
     parent,
     treeEdges,
     order,
     frontier: queue,
-    path,
-    found,
-  });
+    path: [] as number[],
+    found: end === null || start === end,
+  };
+
+  const snapshot = makeSnapshotter(steps, state);
 
   snapshot(null); // estado inicial
 
@@ -128,8 +131,8 @@ export function bfs(
 
     // destino? encerra aqui, quando ele é de fato processado
     if (end !== null && node === end) {
-      found = true;
-      path = reconstructPath(parent, start, end);
+      state.found = true;
+      state.path = reconstructPath(parent, start, end);
       snapshot(node);
       break;
     }
@@ -146,7 +149,7 @@ export function bfs(
   }
 
   snapshot(null, true); // estado final
-  return { steps, found, path, order };
+  return { steps, found: state.found, path: state.path, order };
 }
 
 // ============================================================================
@@ -183,19 +186,23 @@ export function dfs(
   const order: number[] = [];
   const stack: number[] = [start];
 
-  let path: number[] = [];
-  let found = false;
   let current: number | null = null;
 
-  const snapshot = makeSnapshotter(steps, {
+  // `state` é a única fonte de verdade para `path`/`found`: são mutados
+  // via `state.path =`/`state.found =`, nunca reatribuindo uma variável
+  // externa — senão `snapshot()` continuaria enxergando os valores
+  // capturados na criação do objeto, travados (ver `makeSnapshotter`).
+  const state = {
     visited,
     parent,
     treeEdges,
     order,
     frontier: stack,
-    path,
-    found,
-  });
+    path: [] as number[],
+    found: false,
+  };
+
+  const snapshot = makeSnapshotter(steps, state);
 
   snapshot(current); // estado inicial
 
@@ -211,8 +218,8 @@ export function dfs(
     order.push(node);
 
     if (end !== null && node === end) {
-      found = true;
-      path = reconstructPath(parent, start, end);
+      state.found = true;
+      state.path = reconstructPath(parent, start, end);
       snapshot(current);
       break;
     }
@@ -233,5 +240,58 @@ export function dfs(
   }
 
   snapshot(null, true); // estado final
-  return { steps, found, path, order };
+  return { steps, found: state.found, path: state.path, order };
+}
+
+// ============================================================================
+// Busca exaustiva de caminhos (backtracking) — suporte ao "Continuar"
+// ============================================================================
+
+/**
+ * Enumera todos os caminhos simples (sem repetir vértice) de `start` até
+ * `end` via backtracking: um vértice fica marcado apenas enquanto estiver
+ * na pilha do caminho corrente, sendo liberado ao voltar (diferente de
+ * {@link dfs}, cujo `visited` é global e permanente). É assim que se
+ * encontra o caminho ótimo por DFS "à exaustão": comparando o comprimento
+ * de todos os caminhos simples encontrados.
+ *
+ * Vizinhos são visitados na mesma ordem de {@link dfs} (primeiro vizinho
+ * primeiro), então `findAllPaths(...)[0]` é sempre igual ao caminho que
+ * `dfs()` encontra.
+ *
+ * ponytail: backtracking exponencial no pior caso (grafo denso) — troque
+ * por busca com poda/memoização se o grafo deixar de ser desenhado à mão.
+ *
+ * @param graph - Grafo a percorrer.
+ * @param start - Id do vértice de origem.
+ * @param end - Id do vértice de destino.
+ * @returns Todos os caminhos simples de `start` até `end`, na ordem em que
+ *   o backtracking os encontra (não ordenados por comprimento).
+ */
+export function findAllPaths(
+  graph: Graph,
+  start: number,
+  end: number
+): number[][] {
+  const paths: number[][] = [];
+  const onPath = new Set<number>([start]);
+  const path: number[] = [start];
+
+  function backtrack(node: number): void {
+    if (node === end) {
+      paths.push([...path]);
+      return;
+    }
+    for (const neighbor of graph.neighbors(node)) {
+      if (onPath.has(neighbor)) continue;
+      onPath.add(neighbor);
+      path.push(neighbor);
+      backtrack(neighbor);
+      path.pop();
+      onPath.delete(neighbor);
+    }
+  }
+
+  backtrack(start);
+  return paths;
 }

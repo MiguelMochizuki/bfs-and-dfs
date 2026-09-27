@@ -14,6 +14,10 @@ destino, e acompanhe a busca passo a passo.
 - Defina um vértice de origem (e, opcionalmente, um destino) e execute a
   busca de uma vez ou passo a passo, vendo a fronteira (fila/pilha), a
   árvore de busca e o caminho final destacados no canvas.
+- Em DFS com destino definido, após achar o primeiro caminho o botão
+  "Continuar" mostra o próximo caminho simples entre origem e destino (via
+  backtracking) e indica qual é o mais curto entre os já vistos — útil pra
+  ver que, ao contrário do BFS, o DFS não garante o caminho ótimo de cara.
 
 ## Instalação
 
@@ -38,6 +42,16 @@ Para gerar um build de produção:
 npm run build     # checa tipos e gera os arquivos em dist/
 npm run preview   # serve o build gerado, para conferir localmente
 ```
+
+### Smoke test
+
+```bash
+npx playwright install firefox   # só na primeira vez
+npm run smoke
+```
+
+Sobe o servidor de dev sozinho, roda o fluxo DFS + "Continuar" num Firefox
+headless (via Playwright) e confere o resultado no `#status` real da página.
 
 ## Configuração
 
