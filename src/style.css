@@ -282,12 +282,14 @@ button:disabled {
 .node:active { cursor: grabbing; }
 .node:hover circle { stroke: var(--muted); }
 
-.node.start circle { stroke: var(--green); stroke-width: 3; }
-.node.end circle { stroke: var(--red); stroke-width: 3; }
-
+/* estado da busca (preenchimento) — vem antes, cede o anel (stroke) pro papel do nó abaixo */
 .node.visited circle { fill: var(--accent); stroke: #7dd3fc; }
 .node.current circle { fill: var(--orange); stroke: #fbbf24; stroke-width: 4; }
 .node.inpath circle { fill: var(--green); stroke: #4ade80; }
+
+/* papel do nó (anel) — por último, pra origem/destino nunca sumirem mesmo quando também visitado/no caminho */
+.node.start circle { stroke: var(--green); stroke-width: 3; }
+.node.end circle { stroke: var(--red); stroke-width: 3; }
 
 .edge {
   stroke: var(--bg-4);
@@ -298,10 +300,12 @@ button:disabled {
 }
 
 .edge.directed-marker { fill: var(--bg-4); stroke: none; }
-.edge.tree { stroke: var(--green); stroke-width: 3; }
-.edge.tree.directed-marker { fill: var(--green); }
-.edge.path { stroke: var(--accent); stroke-width: 3.5; }
-.edge.path.directed-marker { fill: var(--accent); }
+/* árvore de busca: mesma família do "visitado" (azul) — não disputa com o caminho final */
+.edge.tree { stroke: var(--accent); stroke-width: 3; }
+.edge.tree.directed-marker { fill: var(--accent); }
+/* caminho final: verde, igual ao nó .inpath — mesma cor pra mesma coisa */
+.edge.path { stroke: var(--green); stroke-width: 3.5; }
+.edge.path.directed-marker { fill: var(--green); }
 
 /* realce de hover nas arestas para o modo remover */
 .edge:hover { stroke: var(--red); }
