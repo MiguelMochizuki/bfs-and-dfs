@@ -2,8 +2,10 @@ import type { Graph } from './graph';
 import type { Step } from './types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+/** Raio dos círculos dos vértices, em pixels; também usado para encurtar as arestas nas pontas. */
 export const NODE_RADIUS = 22;
 
+/** Estado necessário para redesenhar o grafo e refletir origem, destino e o passo atual da busca. */
 export interface RenderContext {
   /** Grafo a desenhar. */
   graph: Graph;

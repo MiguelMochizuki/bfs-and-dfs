@@ -12,12 +12,10 @@ destino, e acompanhe a busca passo a passo.
 - Escolha BFS ou DFS e, opcionalmente, se o grafo é direcionado ou
   não-direcionado.
 - Defina um vértice de origem (e, opcionalmente, um destino) e execute a
-  busca de uma vez ou passo a passo, vendo a fronteira (fila/pilha), a
-  árvore de busca e o caminho final destacados no canvas.
-- Em DFS com destino definido, após achar o primeiro caminho o botão
-  "Continuar" mostra o próximo caminho simples entre origem e destino (via
-  backtracking) e indica qual é o mais curto entre os já vistos — útil pra
-  ver que, ao contrário do BFS, o DFS não garante o caminho ótimo de cara.
+  busca com "Passo" (um vértice por clique) ou "Completo" (anima até o fim),
+  vendo a fronteira (fila/pilha), a árvore de busca e o caminho final
+  destacados no canvas. "Resetar" volta ao início da execução atual;
+  "Limpar" apaga o grafo inteiro.
 
 ## Instalação
 
@@ -50,8 +48,41 @@ npx playwright install firefox   # só na primeira vez
 npm run smoke
 ```
 
-Sobe o servidor de dev sozinho, roda o fluxo DFS + "Continuar" num Firefox
-headless (via Playwright) e confere o resultado no `#status` real da página.
+Sobe o servidor de dev sozinho, roda "Passo" e "Completo" em BFS e DFS num
+Firefox headless (via Playwright) e confere o resultado no `#status` real da
+página.
+
+## Organização do projeto
+
+```
+.
+├── index.html          # shell HTML: controles da UI (modos, algoritmo, ações, templates)
+├── public/
+│   └── favicon.svg
+├── scripts/
+│   └── smoke.mjs        # smoke test end-to-end (ver seção acima)
+├── src/
+│   ├── main.ts           # estado global da UI, listeners de DOM, laço de render
+│   ├── graph.ts           # classe Graph (vértices/arestas, direcionado ou não)
+│   ├── algorithms.ts     # bfs()/dfs() puras, com snapshots passo a passo
+│   ├── renderer.ts        # desenho do SVG a partir do Graph + passo atual
+│   ├── templates.ts       # grafos pré-definidos (caminho, ciclo, grade, Petersen, ...)
+│   ├── types.ts            # tipos compartilhados (Vertex, Edge, Step, RunResult, ...)
+│   └── style.css
+├── tsconfig.json
+└── vite.config.ts
+```
+
+## Principais ferramentas e stack
+
+- [Vite](https://vitejs.dev/) — dev server e build.
+- TypeScript em modo estrito (sem framework de UI; DOM/SVG manipulados diretamente).
+- [Playwright](https://playwright.dev/) (Firefox) — smoke test end-to-end.
+
+## Convenção de documentação
+
+Comentários TSDoc em `src/*.ts` seguem a convenção descrita em
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Configuração
 
