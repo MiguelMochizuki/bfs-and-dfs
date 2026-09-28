@@ -1,5 +1,6 @@
 // Smoke test de ponta a ponta: sobe o servidor de dev, dirige o app real
-// num Firefox headless (via Playwright) e confere o fluxo DFS + "Continuar".
+// num Firefox headless (via Playwright) e confere "Passo" e "Completo"
+// (animação até o fim) em BFS e DFS.
 // Roda com: npm run smoke
 import { spawn } from 'node:child_process';
 import { firefox } from 'playwright';
@@ -40,108 +41,62 @@ try {
   await page.goto(URL);
   await page.waitForSelector('text=Simulador de BFS e DFS');
 
-  // Ciclo de 6 vértices (v0..v5): entre opostos há exatamente 2 caminhos
-  // simples (sentido horário e anti-horário) — bom caso pra testar DFS +
-  // "Continuar" e a mensagem de "todos os caminhos explorados".
+  // Ciclo de 6 vértices (v0..v5), origem v0, destino v3 (opostos, 3 arestas
+  // no caminho mínimo em qualquer sentido).
   await page.click('button[data-template="cycle"]');
-  await page.click('input[name="algo"][value="dfs"]');
   await page.click('input[name="mode"][value="setStart"]');
   await page.click('.node[data-id="0"]');
   await page.click('input[name="mode"][value="setEnd"]');
   await page.click('.node[data-id="3"]');
   await page.click('input[name="mode"][value="addVertex"]');
 
-  // "Continuar"/"Ver tudo rápido" não devem exigir ter rodado "Executar"
-  // antes — clicando direto, o backtracking já começa sozinho e mostra o
-  // 1º caminho (não pula pro 2º).
+  // "Passo": avança 1 por clique.
+  await page.click('#stepBtn');
+  const statusAfterStep1 = await page.textContent('#status');
   assert(
-    (await page.getAttribute('#continueBtn', 'disabled')) === null,
-    '"Continuar" deveria estar habilitado sem precisar rodar "Executar" antes'
+    statusAfterStep1.startsWith('Passo 1/'),
+    `1º clique em "Passo" deveria mostrar "Passo 1/...", veio: "${statusAfterStep1}"`
   );
-  await page.click('#continueBtn');
-  const statusFirstContinueDireto = await page.textContent('#status');
+  await page.click('#stepBtn');
+  const statusAfterStep2 = await page.textContent('#status');
   assert(
-    statusFirstContinueDireto.includes('Caminho 1/2') &&
-      statusFirstContinueDireto.includes('v0 → v1 → v2 → v3'),
-    `1º clique em "Continuar" sem "Executar" deveria mostrar o 1º caminho, veio: "${statusFirstContinueDireto}"`
+    statusAfterStep2.startsWith('Passo 2/'),
+    `2º clique em "Passo" deveria mostrar "Passo 2/...", veio: "${statusAfterStep2}"`
   );
 
+  // "Completo" (BFS): anima até o fim sozinho, desabilitando os outros
+  // botões enquanto roda, achando o caminho mínimo v0→v1→v2→v3.
   await page.click('#resetBtn');
-  await page.click('#runBtn');
-  const statusAfterRun = await page.textContent('#status');
+  await page.click('#completeBtn');
   assert(
-    statusAfterRun.includes('Caminho: v0 → v1 → v2 → v3'),
-    `Executar deveria achar o caminho v0→v1→v2→v3, veio: "${statusAfterRun}"`
-  );
-  assert(
-    (await page.getAttribute('#continueBtn', 'disabled')) === null,
-    '"Continuar" deveria estar habilitado após achar o 1º caminho'
-  );
-
-  // esgota num único clique (só há 2 caminhos): o último rastreado é
-  // v0→v5→v4→v3, mas como empata em comprimento com v0→v1→v2→v3 (o
-  // primeiro achado), o esgotamento deve voltar a mostrar ESTE — prova
-  // que exibe o melhor, não o último rastreado.
-  await page.click('#continueBtn');
-  const statusAfterContinue = await page.textContent('#status');
-  assert(
-    statusAfterContinue.includes('2 caminhos simples explorados') &&
-      statusAfterContinue.includes('melhor: v0 → v1 → v2 → v3') &&
-      !statusAfterContinue.includes('v0 → v5 → v4 → v3'),
-    `esgotar deveria mostrar o melhor caminho (v0→v1→v2→v3), veio: "${statusAfterContinue}"`
-  );
-  assert(
-    (await page.getAttribute('#continueBtn', 'disabled')) !== null,
-    '"Continuar" deveria desabilitar após esgotar os caminhos'
-  );
-
-  // "Ver tudo rápido": reseta só a execução (grafo/origem/destino continuam)
-  // e confere que o autoplay chega sozinho no mesmo resultado final.
-  await page.click('#resetBtn');
-  await page.click('#runBtn');
-  await page.click('#playAllBtn');
-  assert(
-    (await page.getAttribute('#runBtn', 'disabled')) !== null,
-    '"Executar" deveria desabilitar durante o autoplay'
+    (await page.getAttribute('#stepBtn', 'disabled')) !== null,
+    '"Passo" deveria desabilitar durante o "Completo"'
   );
   await page.waitForFunction(
-    () => !(document.getElementById('runBtn')).disabled,
+    () => !(document.getElementById('stepBtn')).disabled,
     { timeout: 5000 }
   );
-  const statusAfterPlayAll = await page.textContent('#status');
+  const statusBfsComplete = await page.textContent('#status');
   assert(
-    statusAfterPlayAll.includes('2 caminhos simples explorados') &&
-      statusAfterPlayAll.includes('melhor: v0 → v1 → v2 → v3'),
-    `"Ver tudo rápido" deveria terminar no melhor caminho, veio: "${statusAfterPlayAll}"`
+    statusBfsComplete.includes('Caminho: v0 → v1 → v2 → v3'),
+    `"Completo" (BFS) deveria terminar no caminho mínimo, veio: "${statusBfsComplete}"`
   );
   assert(
-    (await page.getAttribute('#playAllBtn', 'disabled')) !== null,
-    '"Ver tudo rápido" deveria desabilitar de novo ao esgotar'
+    (await page.getAttribute('#completeBtn', 'disabled')) === null,
+    '"Completo" deveria reabilitar ao terminar'
   );
 
-  // BFS já acha "o" caminho ótimo de cara: não existe "próximo caminho" a
-  // explorar, então "Continuar" vira só um sinônimo de "Passo" (avança 1
-  // passo por clique), e "Ver tudo rápido" nem se aplica.
-  await page.click('input[name="algo"][value="bfs"]');
-  assert(
-    (await page.getAttribute('#continueBtn', 'disabled')) === null,
-    '"Continuar" deveria estar habilitado em BFS mesmo sem destino (vira "Passo")'
+  // "Completo" (DFS): funciona direto, sem precisar de "Passo" antes.
+  await page.click('input[name="algo"][value="dfs"]');
+  await page.click('#completeBtn');
+  await page.waitForFunction(
+    () => !(document.getElementById('stepBtn')).disabled,
+    { timeout: 5000 }
   );
+  const statusDfsComplete = await page.textContent('#status');
   assert(
-    (await page.getAttribute('#playAllBtn', 'disabled')) !== null,
-    '"Ver tudo rápido" não deveria existir em BFS'
-  );
-  await page.click('#continueBtn');
-  const statusBfsContinue1 = await page.textContent('#status');
-  assert(
-    statusBfsContinue1.startsWith('Passo 1/'),
-    `"Continuar" em BFS deveria avançar 1 passo, como "Passo", veio: "${statusBfsContinue1}"`
-  );
-  await page.click('#continueBtn');
-  const statusBfsContinue2 = await page.textContent('#status');
-  assert(
-    statusBfsContinue2.startsWith('Passo 2/'),
-    `2º clique em "Continuar" (BFS) deveria ir pro passo 2, veio: "${statusBfsContinue2}"`
+    statusDfsComplete.includes('Caminho: v0 → v1 → v2 → v3'),
+    `"Completo" (DFS) deveria terminar num caminho encontrado, veio: "${statusDfsComplete}"`
   );
 
   await browser.close();

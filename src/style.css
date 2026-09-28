@@ -149,17 +149,28 @@ button:disabled {
   transform: none;
 }
 
-/* botão primário (Executar) */
-#runBtn {
+/* botão primário: ação principal (Completo) */
+button.primary {
   background: rgba(56, 189, 248, 0.15);
   border-color: rgba(56, 189, 248, 0.4);
   color: var(--accent);
   font-weight: 600;
 }
-#runBtn:hover {
+button.primary:hover {
   background: rgba(56, 189, 248, 0.25);
   border-color: var(--accent);
   color: #e0f2fe;
+}
+
+/* botão "fantasma": ações utilitárias, menos protagonismo (Resetar/Limpar) */
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+button.ghost:hover {
+  background: var(--bg-2);
+  color: var(--text-dim);
+  border-color: var(--bg-4);
 }
 
 /* ---------- Templates ---------- */

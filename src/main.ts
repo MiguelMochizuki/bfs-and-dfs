@@ -1,6 +1,6 @@
 import './style.css';
 import { Graph } from './graph';
-import { bfs, dfs, findAllPaths } from './algorithms';
+import { bfs, dfs } from './algorithms';
 import { loadTemplate } from './templates';
 import { renderGraph, svgPoint } from './renderer';
 import type { Algorithm, InteractionMode, RunResult, Step } from './types';
@@ -14,12 +14,6 @@ let pendingEdgeFrom: number | null = null;
 
 let currentRun: RunResult | null = null;
 let currentStepIndex = 0;
-
-// Navegação por todos os caminhos simples (botão "Continuar", só em DFS com destino)
-let allPaths: number[][] | null = null;
-let revealIndex = 0; // quantos caminhos já foram revelados sequencialmente (backtracking)
-let displayIndex = 0; // caminho mostrado agora: segue revealIndex, mas trava no melhor ao esgotar
-let browsingPaths = false;
 let autoPlayTimer: number | null = null;
 const AUTO_PLAY_INTERVAL_MS = 120;
 
@@ -33,10 +27,8 @@ const DRAG_THRESHOLD = 4;
 const svg = document.getElementById('canvas') as unknown as SVGSVGElement;
 const statusEl = document.getElementById('status')!;
 const visitOrderEl = document.getElementById('visitOrder')!;
-const runBtn = document.getElementById('runBtn') as HTMLButtonElement;
+const completeBtn = document.getElementById('completeBtn') as HTMLButtonElement;
 const stepBtn = document.getElementById('stepBtn') as HTMLButtonElement;
-const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
-const playAllBtn = document.getElementById('playAllBtn') as HTMLButtonElement;
 const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const directedInput = document.getElementById('directed') as HTMLInputElement;
@@ -61,10 +53,8 @@ directedInput.addEventListener('change', () => {
   render();
 });
 
-runBtn.addEventListener('click', runAll);
+completeBtn.addEventListener('click', runComplete);
 stepBtn.addEventListener('click', stepOnce);
-continueBtn.addEventListener('click', continuePath);
-playAllBtn.addEventListener('click', playAllPaths);
 resetBtn.addEventListener('click', () => {
   resetRun();
   render();
@@ -242,30 +232,11 @@ function compute(): RunResult {
 }
 
 /**
- * Handler do botão "Executar": calcula a busca (se ainda não calculada) e
- * pula direto para o último passo, mostrando o resultado final.
- */
-function runAll(): void {
-  if (!validate()) return;
-  browsingPaths = false;
-  if (!currentRun) {
-    currentRun = compute();
-    currentStepIndex = 0;
-  }
-  currentStepIndex = currentRun.steps.length - 1;
-  render();
-  updateStatus();
-  updateVisitOrder();
-  updateContinueButton();
-}
-
-/**
  * Handler do botão "Passo": calcula a busca (se ainda não calculada) e
  * avança um único passo por chamada.
  */
 function stepOnce(): void {
   if (!validate()) return;
-  browsingPaths = false;
   if (!currentRun) {
     currentRun = compute();
     currentStepIndex = 0;
@@ -275,146 +246,45 @@ function stepOnce(): void {
   render();
   updateStatus();
   updateVisitOrder();
-  updateContinueButton();
 }
 
 /**
- * Handler do botão "Continuar": cada algoritmo no seu escopo.
- *
- * - **BFS** já acha "o" caminho ótimo de cara — não existe "próximo
- *   caminho" a explorar. Aqui "Continuar" vira só um sinônimo de "Passo":
- *   mostra a busca avançando um passo por clique.
- * - **DFS** não garante caminho ótimo (acha "um" caminho qualquer). Aqui
- *   "Continuar" faz backtracking: calcula (via {@link findAllPaths}) todos
- *   os caminhos simples de origem a destino e revela o próximo a cada
- *   clique, mostrando o melhor (mais curto) entre os já revelados — efeito
- *   "redo" do Prolog. Ao esgotar, passa a exibir o melhor de todos, não o
- *   último rastreado. Não precisa ter rodado "Executar" antes.
+ * Handler do botão "Completo": dispara {@link stepOnce} repetidamente a
+ * cada {@link AUTO_PLAY_INTERVAL_MS} até o fim da busca (BFS ou DFS), em
+ * estilo de animação — mesmo resultado final de clicar "Passo" até o fim,
+ * só que automático. Desabilita os outros botões de ação enquanto roda.
  */
-function continuePath(): void {
-  if (getAlgorithm() === 'bfs') {
-    stepOnce();
-    return;
-  }
-
-  if (endId === null) return;
+function runComplete(): void {
+  if (autoPlayTimer !== null) return;
   if (!validate()) return;
-
-  let freshlyComputed = false;
-  if (allPaths === null) {
-    allPaths = findAllPaths(graph, startId!, endId);
-    revealIndex = 0;
-    freshlyComputed = true;
-  }
-
-  if (allPaths.length === 0) {
-    browsingPaths = false;
-    statusEl.textContent = 'Destino não alcançável a partir da origem.';
-    render();
-    updateContinueButton();
-    return;
-  }
-
-  // Se "Executar"/"Passo" já mostrou o 1º caminho (currentRun.found), este
-  // clique sempre significa "próximo". Só quando nada rodou antes é que o
-  // 1º clique aqui deve, ele mesmo, mostrar o 1º caminho.
-  const alreadyShowedFirst = freshlyComputed ? !!currentRun?.found : true;
-  browsingPaths = true;
-  if (alreadyShowedFirst && revealIndex < allPaths.length - 1) revealIndex++;
-  displayIndex =
-    revealIndex === allPaths.length - 1 ? bestPathIndex(allPaths) : revealIndex;
-  render();
-  updateStatus();
-  updateVisitOrder();
-  updateContinueButton();
-}
-
-/** @returns Índice do caminho mais curto (menos arestas) em `paths`. */
-function bestPathIndex(paths: number[][]): number {
-  let best = 0;
-  for (let i = 1; i < paths.length; i++) {
-    if (paths[i].length < paths[best].length) best = i;
-  }
-  return best;
-}
-
-/**
- * Invalida a execução atual, forçando um novo cálculo na próxima chamada a
- * {@link runAll} ou {@link stepOnce}. Chamado sempre que o grafo, a origem,
- * o destino ou o algoritmo selecionado mudam.
- */
-function resetRun(): void {
-  currentRun = null;
-  currentStepIndex = 0;
-  allPaths = null;
-  revealIndex = 0;
-  displayIndex = 0;
-  browsingPaths = false;
-  visitOrderEl.textContent = '';
-  updateContinueButton();
-}
-
-/**
- * Habilita "Continuar" e "Ver tudo rápido" com regras diferentes por
- * algoritmo, já que fazem coisas diferentes em cada um (ver
- * {@link continuePath}):
- *
- * - **BFS**: "Continuar" só precisa de grafo e origem válidos, igual
- *   "Passo" (não depende de destino nem de "Executar" já ter rodado).
- *   "Ver tudo rápido" não existe pra BFS — "rodar todos os caminhos" não
- *   faz sentido quando só existe um.
- * - **DFS**: os dois exigem também destino definido, e ficam habilitados
- *   enquanto restarem caminhos simples não revelados (ou nenhum foi
- *   calculado ainda).
- */
-function updateContinueButton(): void {
-  const baseEligible =
-    graph.size > 0 && startId !== null && graph.vertices.has(startId);
-
-  if (getAlgorithm() === 'bfs') {
-    continueBtn.disabled = !baseEligible;
-    playAllBtn.disabled = true;
-    return;
-  }
-
-  const dfsEligible =
-    baseEligible &&
-    endId !== null &&
-    (allPaths === null || revealIndex < allPaths.length - 1);
-  continueBtn.disabled = !dfsEligible;
-  playAllBtn.disabled = autoPlayTimer !== null || !dfsEligible;
-}
-
-/**
- * Handler do botão "Ver tudo rápido" (só DFS): dispara {@link continuePath}
- * repetidamente a cada {@link AUTO_PLAY_INTERVAL_MS} até esgotar todos os
- * caminhos simples, parando sozinho no melhor — mesmo resultado de clicar
- * "Continuar" até o fim, só que automático. Desabilita os outros botões
- * de ação enquanto roda. Se o grafo/origem/destino mudar no meio (via
- * canvas), `continuePath` vira no-op e o loop se percebe pelo
- * `continueBtn` desabilitado e para sozinho, sem travar.
- */
-function playAllPaths(): void {
-  if (getAlgorithm() !== 'dfs') return;
-  if (autoPlayTimer !== null || continueBtn.disabled) return;
-  setActionButtonsDisabled(true);
   autoPlayTimer = window.setInterval(() => {
-    continuePath();
-    if (continueBtn.disabled) {
+    stepOnce();
+    if (!currentRun || currentStepIndex >= currentRun.steps.length - 1) {
       window.clearInterval(autoPlayTimer!);
       autoPlayTimer = null;
       setActionButtonsDisabled(false);
     }
   }, AUTO_PLAY_INTERVAL_MS);
+  setActionButtonsDisabled(true);
+}
+
+/**
+ * Invalida a execução atual, forçando um novo cálculo na próxima chamada a
+ * {@link runComplete} ou {@link stepOnce}. Chamado sempre que o grafo, a
+ * origem, o destino ou o algoritmo selecionado mudam.
+ */
+function resetRun(): void {
+  currentRun = null;
+  currentStepIndex = 0;
+  visitOrderEl.textContent = '';
 }
 
 /** Liga/desliga os botões de ação que não fazem sentido durante o autoplay. */
 function setActionButtonsDisabled(disabled: boolean): void {
-  runBtn.disabled = disabled;
+  completeBtn.disabled = disabled;
   stepBtn.disabled = disabled;
   resetBtn.disabled = disabled;
   clearBtn.disabled = disabled;
-  updateContinueButton();
 }
 
 // ---------- Status ----------
@@ -425,29 +295,6 @@ function setActionButtonsDisabled(disabled: boolean): void {
  * interação selecionado.
  */
 function updateStatus(): void {
-  if (browsingPaths && allPaths) {
-    const p = allPaths[displayIndex];
-    const edges = p.length - 1;
-    const exhausted = revealIndex === allPaths.length - 1;
-    let msg: string;
-    if (exhausted) {
-      msg =
-        `${allPaths.length} caminho${allPaths.length === 1 ? '' : 's'} simples explorado${allPaths.length === 1 ? '' : 's'}` +
-        ` — melhor: ${p.map(i => 'v' + i).join(' → ')} (${edges} aresta${edges === 1 ? '' : 's'})`;
-    } else {
-      const bestSoFar = allPaths
-        .slice(0, revealIndex + 1)
-        .reduce((a, b) => (b.length < a.length ? b : a));
-      const bestEdges = bestSoFar.length - 1;
-      msg =
-        `Caminho ${revealIndex + 1}/${allPaths.length} (${edges} aresta${edges === 1 ? '' : 's'})` +
-        ` — ${p.map(i => 'v' + i).join(' → ')}` +
-        ` — melhor até agora: ${bestEdges} aresta${bestEdges === 1 ? '' : 's'}`;
-    }
-    statusEl.textContent = msg;
-    return;
-  }
-
   if (currentRun) {
     const s = currentRun.steps[currentStepIndex];
     const frontierTxt = s.frontier.length
@@ -480,11 +327,6 @@ function updateStatus(): void {
 
 /** Atualiza `visitOrderEl` com a ordem de visita acumulada até o passo atual. */
 function updateVisitOrder(): void {
-  if (browsingPaths && allPaths) {
-    visitOrderEl.textContent =
-      'Caminho: ' + allPaths[displayIndex].map(id => `v${id}`).join(' → ');
-    return;
-  }
   if (!currentRun) {
     visitOrderEl.textContent = '';
     return;
@@ -498,23 +340,7 @@ function updateVisitOrder(): void {
 
 /** Redesenha o SVG a partir do estado atual do grafo e do passo selecionado. */
 function render(): void {
-  let step: Step | null = null;
-  if (browsingPaths && allPaths) {
-    const p = allPaths[displayIndex];
-    step = {
-      visited: new Set(),
-      current: null,
-      frontier: [],
-      treeEdges: [],
-      parent: new Map(),
-      path: p,
-      order: p,
-      finished: true,
-      found: true,
-    };
-  } else if (currentRun) {
-    step = currentRun.steps[currentStepIndex];
-  }
+  const step: Step | null = currentRun ? currentRun.steps[currentStepIndex] : null;
   renderGraph(svg, {
     graph,
     startId,
@@ -546,5 +372,4 @@ resizeObserver.observe(svg);
 
 // ---------- Init ----------
 updateStatus();
-updateContinueButton();
 render();
