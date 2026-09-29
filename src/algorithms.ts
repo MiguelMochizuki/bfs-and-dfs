@@ -98,6 +98,7 @@ export function bfs(
   end: number | null
 ): RunResult {
   const steps: Step[] = [];
+  const adj = graph.adjacency();
 
   // ----- estado da busca -----
   const visited = new Set<number>([start]);
@@ -137,7 +138,7 @@ export function bfs(
       break;
     }
 
-    for (const neighbor of graph.neighbors(node)) {
+    for (const neighbor of adj.get(node) ?? []) {
       if (visited.has(neighbor)) continue;
       visited.add(neighbor);
       parent.set(neighbor, node);
@@ -178,6 +179,7 @@ export function dfs(
   end: number | null
 ): RunResult {
   const steps: Step[] = [];
+  const adj = graph.adjacency();
 
   // ----- estado da busca -----
   const visited = new Set<number>();
@@ -225,7 +227,7 @@ export function dfs(
     }
 
     // empilha vizinhos na ordem inversa para explorar o primeiro primeiro
-    const neighbors = graph.neighbors(node);
+    const neighbors = adj.get(node) ?? [];
     for (let i = neighbors.length - 1; i >= 0; i--) {
       const neighbor = neighbors[i];
       if (visited.has(neighbor)) continue;

@@ -89,19 +89,21 @@ export class Graph {
   }
 
   /**
-   * Lista os ids vizinhos de `id`. Em grafos não-direcionados, inclui
-   * vizinhos em ambos os sentidos da aresta.
+   * Constrói o índice de adjacência (id → ids vizinhos) em uma única passada
+   * sobre {@link Graph.edges}, O(V+E). Em grafos não-direcionados, cada aresta
+   * aparece nos dois sentidos. Cada lista preserva a ordem de inserção das
+   * arestas. O índice é um retrato: reconstrua-o após qualquer mutação.
    *
-   * @param id - Id do vértice cujos vizinhos serão listados.
-   * @returns Ids dos vértices adjacentes a `id`.
+   * @returns Mapa de cada vértice para os ids dos vértices adjacentes.
    */
-  neighbors(id: number): number[] {
-    const result: number[] = [];
+  adjacency(): Map<number, number[]> {
+    const adj = new Map<number, number[]>();
+    for (const id of this.vertices.keys()) adj.set(id, []);
     for (const e of this.edges) {
-      if (e.from === id) result.push(e.to);
-      if (!this.directed && e.to === id) result.push(e.from);
+      adj.get(e.from)!.push(e.to);
+      if (!this.directed) adj.get(e.to)!.push(e.from);
     }
-    return result;
+    return adj;
   }
 
   /** Apaga tudo, reiniciando os ids. */
