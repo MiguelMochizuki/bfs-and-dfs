@@ -160,13 +160,13 @@ export function bfs(
 /**
  * Busca em profundidade de `start` até `end` (ou exaustão, se `end` for `null`).
  *
- * - A fronteira é uma **pilha**.
- * - Um vértice é marcado como visitado **ao entrar na pilha** (evita
- *   duplicatas), mas só é considerado **processado** ao sair dela.
- * - O pai de um vértice (e a aresta da árvore) é definido no momento em que
- *   o vértice é **empilhado**, junto com a marcação de `visited`. Como
- *   filtramos vizinhos já visitados antes de empilhar, o pai **nunca é
- *   sobrescrito**: `parent` reflete fielmente a árvore DFS.
+ * - A fronteira é uma **pilha de pares (nó, pai)**: cada cópia empilhada
+ *   carrega o vértice que a empilhou.
+ * - Visitamos no `pop`, não no `push`: isso evita duplicatas naturalmente
+ *   e mantém `order` fiel à ordem real de processamento.
+ * - O pai de um vértice (e a aresta da árvore) é fixado no `pop`, a partir do
+ *   par que efetivamente saiu da pilha — a aresta realmente percorrida, não a
+ *   da primeira descoberta nem a da última escrita.
  * - Vizinhos são empilhados em ordem **inversa** para que o primeiro vizinho
  *   seja o primeiro a ser explorado (mantém a ordem "natural" do grafo).
  *
@@ -190,7 +190,9 @@ export function dfs(
   const parent = new Map<number, number | null>();
   const treeEdges: [number, number][] = [];
   const order: number[] = [];
-  const stack: number[] = [start];
+  // pilha de pares (nó, pai): o pai é quem empilhou esta cópia. Só é fixado
+  // em `parent` no pop, garantindo que seja a aresta realmente percorrida.
+  const stack: [number, number | null][] = [[start, null]];
 
   let current: number | null = null;
 
@@ -203,29 +205,29 @@ export function dfs(
     parent,
     treeEdges,
     order,
-    frontier: stack,
+    frontier: stack.map(([n]) => n), // apenas ids, para visualização
     path: [] as number[],
-    found: end === null || start === end,
+    found: false,
   };
 
   const snapshot = makeSnapshotter(steps, state);
-
-  // marca a origem como descoberta já no push inicial — mesma convenção do
-  // BFS, e garante que `parent` nunca tenha entradas para vértices não
-  // descobertos
-  visited.add(start);
-  parent.set(start, null);
 
   snapshot(current); // estado inicial
 
   // ----- laço principal -----
   while (stack.length > 0) {
-    const node = stack.pop()!;
+    const [node, p] = stack.pop()!;
 
-    // como filtramos vizinhos já visitados no push, não há duplicatas na
-    // pilha: todo pop é um vértice novo, pronto para ser processado
+    // pode haver duplicatas na pilha; ignoramos o que já foi visitado
+    if (visited.has(node)) continue;
+
+    visited.add(node);
     current = node;
     order.push(node);
+
+    // fixa o pai AGORA: é a aresta realmente percorrida pelo DFS
+    parent.set(node, p);
+    if (p !== null) treeEdges.push([p, node]);
 
     if (end !== null && node === end) {
       state.found = true;
@@ -234,17 +236,17 @@ export function dfs(
       break;
     }
 
-    // empilha vizinhos na ordem inversa para explorar o primeiro primeiro;
-    // marca como visitado e define o pai **no push**, nunca sobrescrevendo
+    // empilha vizinhos na ordem inversa para explorar o primeiro primeiro,
+    // cada um carregando `node` como seu pai
     const neighbors = adj.get(node) ?? [];
     for (let i = neighbors.length - 1; i >= 0; i--) {
       const neighbor = neighbors[i];
       if (visited.has(neighbor)) continue;
-      visited.add(neighbor);
-      parent.set(neighbor, node);
-      treeEdges.push([node, neighbor]);
-      stack.push(neighbor);
+      stack.push([neighbor, node]);
     }
+
+    // atualiza a fronteira visível com os ids atuais da pilha
+    state.frontier = stack.map(([n]) => n);
 
     snapshot(current);
   }
