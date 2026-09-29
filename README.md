@@ -44,12 +44,12 @@ npm run preview   # serve o build gerado, para conferir localmente
 ### Smoke test
 
 ```bash
-npx playwright install firefox   # só na primeira vez
+npx playwright install chromium   # só na primeira vez
 npm run smoke
 ```
 
 Sobe o servidor de dev sozinho, roda "Passo" e "Completo" em BFS e DFS num
-Firefox headless (via Playwright) e confere o resultado no `#status` real da
+Chromium headless (via Playwright) e confere o resultado no `#status` real da
 página.
 
 ## Organização do projeto
@@ -77,7 +77,7 @@ página.
 
 - [Vite](https://vitejs.dev/) — dev server e build.
 - TypeScript em modo estrito (sem framework de UI; DOM/SVG manipulados diretamente).
-- [Playwright](https://playwright.dev/) (Firefox) — smoke test end-to-end.
+- [Playwright](https://playwright.dev/) (Chromium) — smoke test end-to-end.
 
 ## Convenção de documentação
 

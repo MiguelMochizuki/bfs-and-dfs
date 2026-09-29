@@ -1,9 +1,9 @@
 // Smoke test de ponta a ponta: sobe o servidor de dev, dirige o app real
-// num Firefox headless (via Playwright) e confere "Passo" e "Completo"
+// num Chromium headless (via Playwright) e confere "Passo" e "Completo"
 // (animação até o fim) em BFS e DFS.
 // Roda com: npm run smoke
 import { spawn } from 'node:child_process';
-import { firefox } from 'playwright';
+import { chromium } from 'playwright';
 
 const PORT = 5173;
 const URL = `http://localhost:${PORT}`;
@@ -33,7 +33,7 @@ try {
   await waitForServer(URL);
 
   const errors = [];
-  const browser = await firefox.launch();
+  const browser = await chromium.launch();
   const page = await browser.newPage();
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('pageerror', err => errors.push(String(err)));
