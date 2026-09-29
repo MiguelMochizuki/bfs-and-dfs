@@ -1,15 +1,45 @@
-import type { Edge, Vertex } from './types';
+import { makeSnapshotter, reconstructPath } from './algorithms';
+import type { Edge, RunResult, Step, Vertex } from './types';
 
 /**
- * Grafo simples (sem laços nem arestas duplicadas).
+ * Grafo simples (sem laços nem arestas duplicadas) representado por lista de
+ * adjacência: `adj` mapeia cada vértice aos seus vizinhos, na ordem em que as
+ * arestas foram inseridas, e é a única fonte de verdade das arestas.
+ *
+ * A lista é **sempre simétrica**: toda seta `u→v` tem a contrapartida `v→u`.
+ * Cada seta carrega um bit `mirror`: `false` para a seta desenhada pelo
+ * usuário, `true` para a contrapartida criada só para o modo não-direcionado.
+ * Alternar {@link Graph.directed} apenas muda quais setas são visíveis
+ * (todas × só as primárias), então a troca é exatamente reversível.
+ *
  * Vértices têm coordenadas para renderização.
- * Funciona como direcionado ou não-direcionado conforme `directed`.
  */
 export class Graph {
-  vertices = new Map<number, Vertex>();
-  edges: Edge[] = [];
+  /** Vértices por id, na ordem de criação. */
+  readonly vertices = new Map<number, Vertex>();
+  /** Se o grafo é direcionado; alternar não altera `adj`, só a visão dele. */
   directed = false;
+  private adj = new Map<number, Map<number, boolean>>(); // vizinho → é espelho?
   private nextId = 0;
+
+  /**
+   * Arestas derivadas da lista de adjacência (uma por par em grafos
+   * não-direcionados), para o renderer.
+   */
+  get edges(): Edge[] {
+    const result: Edge[] = [];
+    for (const [from, out] of this.adj) {
+      for (const [to, mirror] of out) {
+        if (this.directed ? !mirror : from < to) result.push({ from, to });
+      }
+    }
+    return result;
+  }
+
+  /** Quantidade de vértices. */
+  get size(): number {
+    return this.vertices.size;
+  }
 
   /**
    * Cria um vértice em (x, y).
@@ -21,6 +51,7 @@ export class Graph {
   addVertex(x: number, y: number): Vertex {
     const v: Vertex = { id: this.nextId++, x, y };
     this.vertices.set(v.id, v);
+    this.adj.set(v.id, new Map());
     return v;
   }
 
@@ -31,9 +62,9 @@ export class Graph {
    * @param id - Id do vértice a remover.
    */
   removeVertex(id: number): void {
-    if (!this.vertices.has(id)) return;
-    this.vertices.delete(id);
-    this.edges = this.edges.filter(e => e.from !== id && e.to !== id);
+    if (!this.vertices.delete(id)) return;
+    this.adj.delete(id);
+    for (const out of this.adj.values()) out.delete(id);
   }
 
   /**
@@ -45,76 +76,220 @@ export class Graph {
    *   dois ids não existir, ou se a aresta já existir; `true` caso contrário.
    */
   addEdge(from: number, to: number): boolean {
-    if (from === to) return false;
-    if (!this.vertices.has(from) || !this.vertices.has(to)) return false;
+    if (from === to || !this.vertices.has(from) || !this.vertices.has(to)) return false;
     if (this.hasEdge(from, to)) return false;
-    this.edges.push({ from, to });
+    this.adj.get(from)!.set(to, false); // se era espelho, vira primária mantendo a posição
+    const back = this.adj.get(to)!;
+    if (!back.has(from)) back.set(from, true);
     return true;
   }
 
   /**
-   * Verifica se existe aresta entre `from` e `to`, respeitando
-   * {@link Graph.directed}: em grafos não-direcionados, checa também o sentido inverso.
+   * Verifica se existe aresta de `from` para `to`. Em grafos direcionados só
+   * conta a seta primária; nos não-direcionados, qualquer sentido.
    *
    * @param from - Id do vértice de origem.
    * @param to - Id do vértice de destino.
    * @returns `true` se a aresta existir.
    */
   hasEdge(from: number, to: number): boolean {
-    if (this.directed) {
-      return this.edges.some(e => e.from === from && e.to === to);
-    }
-    return this.edges.some(
-      e =>
-        (e.from === from && e.to === to) ||
-        (e.from === to && e.to === from)
-    );
+    const mirror = this.adj.get(from)?.get(to);
+    return this.directed ? mirror === false : mirror !== undefined;
   }
 
   /**
    * Remove a aresta entre `from` e `to` (em ambos os sentidos, se o grafo
-   * for não-direcionado).
+   * for não-direcionado). No modo direcionado, se `to→from` também for uma
+   * seta primária, ela permanece e `from→to` volta a ser só o seu espelho.
    *
    * @param from - Id do vértice de origem.
    * @param to - Id do vértice de destino.
    */
   removeEdge(from: number, to: number): void {
-    this.edges = this.edges.filter(e => {
-      if (this.directed) return !(e.from === from && e.to === to);
-      return !(
-        (e.from === from && e.to === to) ||
-        (e.from === to && e.to === from)
-      );
-    });
+    const out = this.adj.get(from);
+    const back = this.adj.get(to);
+    if (!out || !back) return;
+    if (this.directed) {
+      if (out.get(to) !== false) return;
+      if (back.get(from) === false) {
+        out.set(to, true);
+        return;
+      }
+    }
+    out.delete(to);
+    back.delete(from);
   }
 
   /**
-   * Constrói o índice de adjacência (id → ids vizinhos) em uma única passada
-   * sobre {@link Graph.edges}, O(V+E). Em grafos não-direcionados, cada aresta
-   * aparece nos dois sentidos. Cada lista preserva a ordem de inserção das
-   * arestas. O índice é um retrato: reconstrua-o após qualquer mutação.
+   * Vizinhos de `id`, na ordem de inserção das arestas. Em grafos
+   * direcionados, só os alcançáveis por setas primárias.
    *
-   * @returns Mapa de cada vértice para os ids dos vértices adjacentes.
+   * @param id - Id do vértice.
+   * @returns Ids dos vértices adjacentes (vazio se `id` não existir).
    */
-  adjacency(): Map<number, number[]> {
-    const adj = new Map<number, number[]>();
-    for (const id of this.vertices.keys()) adj.set(id, []);
-    for (const e of this.edges) {
-      adj.get(e.from)!.push(e.to);
-      if (!this.directed) adj.get(e.to)!.push(e.from);
+  neighbors(id: number): number[] {
+    const result: number[] = [];
+    for (const [v, mirror] of this.adj.get(id) ?? []) {
+      if (!(this.directed && mirror)) result.push(v);
     }
-    return adj;
+    return result;
   }
 
   /** Apaga tudo, reiniciando os ids. */
   clear(): void {
     this.vertices.clear();
-    this.edges = [];
+    this.adj.clear();
     this.nextId = 0;
   }
 
-  /** Quantidade de vértices. */
-  get size(): number {
-    return this.vertices.size;
+  // ===================== BFS =====================
+
+  /**
+   * Busca em largura de `start` até `end` (ou exaustão, se `end` for `null`).
+   *
+   * - A fronteira é uma **fila**.
+   * - Um vértice é marcado como visitado **ao entrar na fila** (evita
+   *   duplicatas), mas só é considerado **processado** ao sair dela.
+   * - O destino encerra a busca **quando sai da fila**, não quando entra.
+   *   Isso garante que `order` e `frontier` reflitam o estado real.
+   *
+   * @param start - Id do vértice de origem.
+   * @param end - Id do vértice de destino, ou `null` para percorrer todo o
+   *   componente conexo de `start` sem parar.
+   * @returns Sequência de {@link Step} (um por vértice processado, mais os
+   *   snapshots inicial e final) junto com o resultado consolidado.
+   */
+  bfs(start: number, end: number | null): RunResult {
+    const steps: Step[] = [];
+
+    // ----- estado da busca -----
+    const visited = new Set<number>([start]);
+    const parent = new Map<number, number | null>([[start, null]]);
+    const treeEdges: [number, number][] = [];
+    const order: number[] = [];
+    const queue: number[] = [start];
+
+    // `state` é a única fonte de verdade para `path`/`found`: são mutados
+    // via `state.path =`/`state.found =`, nunca reatribuindo uma variável
+    // externa — senão `snapshot()` continuaria enxergando os valores
+    // capturados na criação do objeto, travados (ver `makeSnapshotter`).
+    const state = {
+      visited,
+      parent,
+      treeEdges,
+      order,
+      frontier: queue,
+      path: [] as number[],
+      found: start === end,
+    };
+
+    const snapshot = makeSnapshotter(steps, state);
+
+    snapshot(null); // estado inicial
+
+    // ----- laço principal -----
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      order.push(node);
+
+      // destino? encerra aqui, quando ele é de fato processado
+      if (end !== null && node === end) {
+        state.found = true;
+        state.path = reconstructPath(parent, start, end);
+        snapshot(node);
+        break;
+      }
+
+      for (const neighbor of this.neighbors(node)) {
+        if (visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        parent.set(neighbor, node);
+        treeEdges.push([node, neighbor]);
+        queue.push(neighbor);
+      }
+
+      snapshot(node);
+    }
+
+    snapshot(null, true); // estado final
+    return { steps, found: state.found, path: state.path, order };
+  }
+
+  // ===================== DFS (iterativo) =====================
+
+  /**
+   * Busca em profundidade de `start` até `end` (ou exaustão, se `end` for `null`).
+   *
+   * - A fronteira é uma **pilha** de pares (vértice, pai).
+   * - Visitamos no `pop`, não no `push`: isso evita duplicatas naturalmente
+   *   e mantém `order` fiel à ordem real de processamento.
+   * - O pai (e a aresta da árvore) é fixado no `pop`: é o de quem empilhou a
+   *   cópia que efetivamente saiu da pilha, não o de quem descobriu o vértice.
+   * - Vizinhos são empilhados em ordem **inversa** para que o primeiro vizinho
+   *   seja o primeiro a ser explorado.
+   *
+   * @param start - Id do vértice de origem.
+   * @param end - Id do vértice de destino, ou `null` para percorrer todo o
+   *   componente conexo de `start` sem parar.
+   * @returns Sequência de {@link Step} (um por vértice processado, mais os
+   *   snapshots inicial e final) junto com o resultado consolidado.
+   */
+  dfs(start: number, end: number | null): RunResult {
+    const steps: Step[] = [];
+
+    // ----- estado da busca -----
+    const visited = new Set<number>();
+    const parent = new Map<number, number | null>();
+    const treeEdges: [number, number][] = [];
+    const order: number[] = [];
+    const stack: [number, number | null][] = [[start, null]];
+
+    // Mesma regra do BFS: `state` é mutado, nunca reatribuído por fora.
+    const state = {
+      visited,
+      parent,
+      treeEdges,
+      order,
+      frontier: stack.map(([n]) => n), // apenas ids, para visualização
+      path: [] as number[],
+      found: start === end,
+    };
+
+    const snapshot = makeSnapshotter(steps, state);
+
+    snapshot(null); // estado inicial
+
+    // ----- laço principal -----
+    while (stack.length > 0) {
+      const [node, p] = stack.pop()!;
+
+      // pode haver duplicatas na pilha; ignoramos o que já foi visitado
+      if (visited.has(node)) continue;
+
+      visited.add(node);
+      order.push(node);
+      parent.set(node, p);
+      if (p !== null) treeEdges.push([p, node]);
+
+      if (end !== null && node === end) {
+        state.found = true;
+        state.path = reconstructPath(parent, start, end);
+        // `frontier` fica como no passo anterior (ainda com o destino, sem os
+        // vizinhos dele): a busca encerra antes de expandi-lo.
+        snapshot(node);
+        break;
+      }
+
+      const neighbors = this.neighbors(node);
+      for (let i = neighbors.length - 1; i >= 0; i--) {
+        if (!visited.has(neighbors[i])) stack.push([neighbors[i], node]);
+      }
+
+      state.frontier = stack.map(([n]) => n);
+      snapshot(node);
+    }
+
+    snapshot(null, true); // estado final
+    return { steps, found: state.found, path: state.path, order };
   }
 }

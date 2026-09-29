@@ -1,8 +1,7 @@
-import type { Graph } from './graph';
-import type { RunResult, Step } from './types';
+import type { Step } from './types';
 
 // ============================================================================
-// Utilitários
+// Auxiliares de busca (usados por Graph.bfs / Graph.dfs)
 // ============================================================================
 
 /**
@@ -14,7 +13,7 @@ import type { RunResult, Step } from './types';
  * @returns Sequência de ids de `start` até `end`, ou `[]` se `end` não
  *   estiver conectado a `start` no mapa de pais.
  */
-function reconstructPath(
+export function reconstructPath(
   parent: Map<number, number | null>,
   start: number,
   end: number
@@ -45,7 +44,7 @@ function reconstructPath(
  *   esses valores no momento da chamada.
  * @returns Função `snapshot(current, finished?)` que grava um {@link Step}.
  */
-function makeSnapshotter(
+export function makeSnapshotter(
   steps: Step[],
   state: {
     visited: Set<number>;
@@ -70,189 +69,4 @@ function makeSnapshotter(
       found: state.found,
     });
   };
-}
-
-// ============================================================================
-// BFS — Busca em Largura (fila / FIFO)
-// ============================================================================
-
-/**
- * Busca em largura de `start` até `end` (ou exaustão, se `end` for `null`).
- *
- * - A fronteira é uma **fila**.
- * - Um vértice é marcado como visitado **ao entrar na fila** (evita
- *   duplicatas), mas só é considerado **processado** ao sair dela.
- * - O destino encerra a busca **quando sai da fila**, não quando entra.
- *   Isso garante que `order` e `frontier` reflitam o estado real.
- *
- * @param graph - Grafo a percorrer.
- * @param start - Id do vértice de origem.
- * @param end - Id do vértice de destino, ou `null` para percorrer todo o
- *   componente conexo de `start` sem parar.
- * @returns Sequência de {@link Step} (um por vértice processado, mais os
- *   snapshots inicial e final) junto com o resultado consolidado.
- */
-export function bfs(
-  graph: Graph,
-  start: number,
-  end: number | null
-): RunResult {
-  const steps: Step[] = [];
-  const adj = graph.adjacency();
-
-  // ----- estado da busca -----
-  const visited = new Set<number>([start]);
-  const parent = new Map<number, number | null>([[start, null]]);
-  const treeEdges: [number, number][] = [];
-  const order: number[] = [];
-  const queue: number[] = [start];
-
-  // `state` é a única fonte de verdade para `path`/`found`: são mutados
-  // via `state.path =`/`state.found =`, nunca reatribuindo uma variável
-  // externa — senão `snapshot()` continuaria enxergando os valores
-  // capturados na criação do objeto, travados (ver `makeSnapshotter`).
-  const state = {
-    visited,
-    parent,
-    treeEdges,
-    order,
-    frontier: queue,
-    path: [] as number[],
-    found: start === end,
-  };
-
-  const snapshot = makeSnapshotter(steps, state);
-
-  snapshot(null); // estado inicial
-
-  // ----- laço principal -----
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-
-    // destino? encerra aqui, quando ele é de fato processado
-    if (end !== null && node === end) {
-      state.found = true;
-      state.path = reconstructPath(parent, start, end);
-      snapshot(node);
-      break;
-    }
-
-    for (const neighbor of adj.get(node) ?? []) {
-      if (visited.has(neighbor)) continue;
-      visited.add(neighbor);
-      parent.set(neighbor, node);
-      treeEdges.push([node, neighbor]);
-      queue.push(neighbor);
-    }
-
-    snapshot(node);
-  }
-
-  snapshot(null, true); // estado final
-  return { steps, found: state.found, path: state.path, order };
-}
-
-// ============================================================================
-// DFS — Busca em Profundidade (pilha / LIFO)
-// ============================================================================
-
-/**
- * Busca em profundidade de `start` até `end` (ou exaustão, se `end` for `null`).
- *
- * - A fronteira é uma **pilha de pares (nó, pai)**: cada cópia empilhada
- *   carrega o vértice que a empilhou.
- * - Visitamos no `pop`, não no `push`: isso evita duplicatas naturalmente
- *   e mantém `order` fiel à ordem real de processamento.
- * - O pai de um vértice (e a aresta da árvore) é fixado no `pop`, a partir do
- *   par que efetivamente saiu da pilha — a aresta realmente percorrida, não a
- *   da primeira descoberta nem a da última escrita.
- * - Vizinhos são empilhados em ordem **inversa** para que o primeiro vizinho
- *   seja o primeiro a ser explorado (mantém a ordem "natural" do grafo).
- *
- * @param graph - Grafo a percorrer.
- * @param start - Id do vértice de origem.
- * @param end - Id do vértice de destino, ou `null` para percorrer todo o
- *   componente conexo de `start` sem parar.
- * @returns Sequência de {@link Step} (um por vértice processado, mais os
- *   snapshots inicial e final) junto com o resultado consolidado.
- */
-export function dfs(
-  graph: Graph,
-  start: number,
-  end: number | null
-): RunResult {
-  const steps: Step[] = [];
-  const adj = graph.adjacency();
-
-  // ----- estado da busca -----
-  const visited = new Set<number>();
-  const parent = new Map<number, number | null>();
-  const treeEdges: [number, number][] = [];
-  const order: number[] = [];
-  // pilha de pares (nó, pai): o pai é quem empilhou esta cópia. Só é fixado
-  // em `parent` no pop, garantindo que seja a aresta realmente percorrida.
-  const stack: [number, number | null][] = [[start, null]];
-
-  let current: number | null = null;
-
-  // `state` é a única fonte de verdade para `path`/`found`: são mutados
-  // via `state.path =`/`state.found =`, nunca reatribuindo uma variável
-  // externa — senão `snapshot()` continuaria enxergando os valores
-  // capturados na criação do objeto, travados (ver `makeSnapshotter`).
-  const state = {
-    visited,
-    parent,
-    treeEdges,
-    order,
-    frontier: stack.map(([n]) => n), // apenas ids, para visualização
-    path: [] as number[],
-    found: start === end,
-  };
-
-  const snapshot = makeSnapshotter(steps, state);
-
-  snapshot(current); // estado inicial
-
-  // ----- laço principal -----
-  while (stack.length > 0) {
-    const [node, p] = stack.pop()!;
-
-    // pode haver duplicatas na pilha; ignoramos o que já foi visitado
-    if (visited.has(node)) continue;
-
-    visited.add(node);
-    current = node;
-    order.push(node);
-
-    // fixa o pai AGORA: é a aresta realmente percorrida pelo DFS
-    parent.set(node, p);
-    if (p !== null) treeEdges.push([p, node]);
-
-    if (end !== null && node === end) {
-      state.found = true;
-      state.path = reconstructPath(parent, start, end);
-      // `frontier` fica como no passo anterior (ainda com o destino, sem os
-      // vizinhos dele): a busca encerra antes de expandi-lo.
-      snapshot(current);
-      break;
-    }
-
-    // empilha vizinhos na ordem inversa para explorar o primeiro primeiro,
-    // cada um carregando `node` como seu pai
-    const neighbors = adj.get(node) ?? [];
-    for (let i = neighbors.length - 1; i >= 0; i--) {
-      const neighbor = neighbors[i];
-      if (visited.has(neighbor)) continue;
-      stack.push([neighbor, node]);
-    }
-
-    // atualiza a fronteira visível com os ids atuais da pilha
-    state.frontier = stack.map(([n]) => n);
-
-    snapshot(current);
-  }
-
-  snapshot(null, true); // estado final
-  return { steps, found: state.found, path: state.path, order };
 }

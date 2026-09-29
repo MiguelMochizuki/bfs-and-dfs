@@ -1,6 +1,5 @@
 import './style.css';
 import { Graph } from './graph';
-import { bfs, dfs } from './algorithms';
 import { loadTemplate } from './templates';
 import { renderGraph, svgPoint } from './renderer';
 import type { Algorithm, InteractionMode, RunResult, Step } from './types';
@@ -226,9 +225,9 @@ function validate(): boolean {
  * @returns Resultado completo da busca, com todos os passos.
  */
 function compute(): RunResult {
-  const algo = getAlgorithm();
-  const fn = algo === 'bfs' ? bfs : dfs;
-  return fn(graph, startId!, endId);
+  return getAlgorithm() === 'bfs'
+    ? graph.bfs(startId!, endId)
+    : graph.dfs(startId!, endId);
 }
 
 /**
