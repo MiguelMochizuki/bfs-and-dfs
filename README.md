@@ -63,8 +63,8 @@ página.
 │   └── smoke.mjs        # smoke test end-to-end (ver seção acima)
 ├── src/
 │   ├── main.ts           # estado global da UI, listeners de DOM, laço de render
-│   ├── graph.ts           # classe Graph (vértices/arestas, direcionado ou não)
-│   ├── algorithms.ts     # bfs()/dfs() puras, com snapshots passo a passo
+│   ├── graph.ts           # classe Graph: lista de adjacência, com bfs()/dfs() como métodos
+│   ├── algorithms.ts     # auxiliares das buscas (snapshots passo a passo, reconstrução do caminho)
 │   ├── renderer.ts        # desenho do SVG a partir do Graph + passo atual
 │   ├── templates.ts       # grafos pré-definidos (caminho, ciclo, grade, Petersen, ...)
 │   ├── types.ts            # tipos compartilhados (Vertex, Edge, Step, RunResult, ...)
