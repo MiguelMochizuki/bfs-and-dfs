@@ -117,6 +117,25 @@ try {
     `DFS em K5 deveria seguir o caminho percorrido, veio: "${statusDfsK5}"`
   );
 
+  // Sem destino (recarregar o template zera origem/destino): a busca percorre
+  // o componente inteiro e o status não fala em "Caminho" nem "Destino".
+  await page.click('button[data-template="complete"]');
+  await page.click('input[name="mode"][value="setStart"]');
+  await page.click('.node[data-id="0"]');
+  for (const algo of ['dfs', 'bfs']) {
+    await page.click(`input[name="algo"][value="${algo}"]`);
+    await page.click('#completeBtn');
+    await page.waitForFunction(
+      () => !(document.getElementById('stepBtn')).disabled,
+      { timeout: 5000 }
+    );
+    const statusNoEnd = await page.textContent('#status');
+    assert(
+      statusNoEnd.includes('Componente percorrido: 5 vértices'),
+      `${algo.toUpperCase()} sem destino deveria percorrer o componente, veio: "${statusNoEnd}"`
+    );
+  }
+
   await browser.close();
 
   assert(errors.length === 0, `erros no console do navegador: ${errors.join(' | ')}`);
