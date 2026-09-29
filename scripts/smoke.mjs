@@ -99,6 +99,24 @@ try {
     `"Completo" (DFS) deveria terminar num caminho encontrado, veio: "${statusDfsComplete}"`
   );
 
+  // DFS em K5 (origem v0, destino v4): o caminho deve ser o realmente
+  // percorrido (v0→v1→v2→v3→v4), não o atalho v0→v4 da primeira descoberta.
+  await page.click('button[data-template="complete"]');
+  await page.click('input[name="mode"][value="setStart"]');
+  await page.click('.node[data-id="0"]');
+  await page.click('input[name="mode"][value="setEnd"]');
+  await page.click('.node[data-id="4"]');
+  await page.click('#completeBtn');
+  await page.waitForFunction(
+    () => !(document.getElementById('stepBtn')).disabled,
+    { timeout: 5000 }
+  );
+  const statusDfsK5 = await page.textContent('#status');
+  assert(
+    statusDfsK5.includes('Caminho: v0 → v1 → v2 → v3 → v4'),
+    `DFS em K5 deveria seguir o caminho percorrido, veio: "${statusDfsK5}"`
+  );
+
   await browser.close();
 
   assert(errors.length === 0, `erros no console do navegador: ${errors.join(' | ')}`);
