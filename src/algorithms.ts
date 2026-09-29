@@ -163,6 +163,8 @@ export function bfs(
  * - A fronteira é uma **pilha**.
  * - Visitamos no `pop`, não no `push`: isso evita duplicatas naturalmente
  *   e mantém `order` fiel à ordem real de processamento.
+ * - O pai de um vértice (e a aresta da árvore) é o de quem empilhou a cópia
+ *   que efetivamente saiu da pilha, não o de quem o descobriu primeiro.
  * - Vizinhos são empilhados em ordem **inversa** para que o primeiro vizinho
  *   seja o primeiro a ser explorado (mantém a ordem "natural" do grafo).
  *
@@ -218,6 +220,10 @@ export function dfs(
     visited.add(node);
     current = node;
     order.push(node);
+    // o pai vigente é o de quem empilhou a cópia que acabou de sair (a última
+    // empilhada), ou seja, a aresta realmente percorrida pelo DFS
+    const p = parent.get(node);
+    if (p !== undefined && p !== null) treeEdges.push([p, node]);
 
     if (end !== null && node === end) {
       state.found = true;
@@ -231,10 +237,7 @@ export function dfs(
     for (let i = neighbors.length - 1; i >= 0; i--) {
       const neighbor = neighbors[i];
       if (visited.has(neighbor)) continue;
-      if (!parent.has(neighbor)) {
-        parent.set(neighbor, node);
-        treeEdges.push([node, neighbor]);
-      }
+      parent.set(neighbor, node); // última a empilhar = primeira a sair
       stack.push(neighbor);
     }
 
