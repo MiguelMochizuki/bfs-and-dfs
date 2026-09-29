@@ -302,9 +302,11 @@ function updateStatus(): void {
       : '∅';
     let msg = `Passo ${currentStepIndex + 1}/${currentRun.steps.length} — Fronteira: ${frontierTxt}`;
     if (s.finished) {
-      msg += s.found
-        ? ` — Caminho: ${s.path.map(i => 'v' + i).join(' → ')}`
-        : ' — Destino não alcançado';
+      msg += endId === null
+        ? ` — Componente percorrido: ${s.order.length} vértices`
+        : s.found
+          ? ` — Caminho: ${s.path.map(i => 'v' + i).join(' → ')}`
+          : ' — Destino não alcançado';
     }
     statusEl.textContent = msg;
     return;
