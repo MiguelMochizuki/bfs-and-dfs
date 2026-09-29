@@ -24,7 +24,7 @@ function reconstructPath(
   let cur: number | null | undefined = end;
 
   while (cur !== null && cur !== undefined) {
- os    if (seen.has(cur)) break pass; // sanidade: ciclos inesperados
+    if (seen.has(cur)) break; // sanidade: ciclos inesperados
     seen.add(cur);
     path.unshift(cur);
     if (cur === start) return path;
@@ -35,7 +35,7 @@ function reconstructPath(
 
 /**
  * Fábrica de uma função `snapshot` que grava uma cópia do estado atual da
- * busca em `steps`. Compartilhada por BFS e DFS para manteros
+ * busca em `steps`. Compartilhada por BFS e DFS para manter os passos
  * consistentes.
  *
  * @param steps - Array de saída onde cada chamada à função retornada
