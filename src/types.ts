@@ -51,7 +51,7 @@ export interface Step {
   order: number[];
   /** `true` no último passo da execução (sucesso ou exaustão). */
   finished: boolean;
-  /** `true` se o destino foi alcançado (ou não havia destino definido). */
+  /** `true` somente se um destino foi definido e alcançado. */
   found: boolean;
 }
 
@@ -59,7 +59,7 @@ export interface Step {
 export interface RunResult {
   /** Sequência de snapshots, um por vértice processado, do início ao fim. */
   steps: Step[];
-  /** `true` se o destino foi alcançado (ou não havia destino definido). */
+  /** `true` somente se um destino foi definido e alcançado. */
   found: boolean;
   /** Caminho de origem até destino; vazio se não encontrado. */
   path: number[];

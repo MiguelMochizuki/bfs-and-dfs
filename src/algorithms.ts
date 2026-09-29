@@ -118,7 +118,7 @@ export function bfs(
     order,
     frontier: queue,
     path: [] as number[],
-    found: end === null || start === end,
+    found: start === end,
   };
 
   const snapshot = makeSnapshotter(steps, state);
@@ -207,7 +207,7 @@ export function dfs(
     order,
     frontier: stack.map(([n]) => n), // apenas ids, para visualização
     path: [] as number[],
-    found: false,
+    found: start === end,
   };
 
   const snapshot = makeSnapshotter(steps, state);
@@ -232,6 +232,8 @@ export function dfs(
     if (end !== null && node === end) {
       state.found = true;
       state.path = reconstructPath(parent, start, end);
+      // `frontier` fica como no passo anterior (ainda com o destino, sem os
+      // vizinhos dele): a busca encerra antes de expandi-lo.
       snapshot(current);
       break;
     }
